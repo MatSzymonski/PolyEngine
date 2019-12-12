@@ -99,7 +99,7 @@ void ImguiSystem::OnUpdate(Scene* scene)
 	ImGuiIO& io = ImGui::GetIO();
 	if (!io.Fonts->IsBuilt())
 	{
-		core::utils::gConsole.LogInfo("ImguiSystem::ImguiUpdatePhase fonts are not build yet, returning");
+		//core::utils::gConsole.LogInfo("ImguiSystem::ImguiUpdatePhase fonts are not build yet, returning"); //TODO(HIST0R)
 		return;
 	}
 

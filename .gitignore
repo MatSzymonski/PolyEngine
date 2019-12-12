@@ -30,6 +30,7 @@ bld/
 CommonBuild/
 CommonBuild*/
 cmake-build-*
+ThirdParty/
 
 # Windows specific stuff
 [Tt]humbs.db

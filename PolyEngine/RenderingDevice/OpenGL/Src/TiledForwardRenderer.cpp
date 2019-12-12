@@ -119,7 +119,11 @@ void TiledForwardRenderer::Init()
 	ScreenSize targetsSize;
 	targetsSize.Width = (int)(viewportSize.X * screenSize.Width);
 	targetsSize.Height = (int)(viewportSize.Y * screenSize.Height);
-
+	core::utils::gConsole.LogInfo("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	core::utils::gConsole.LogInfo("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	core::utils::gConsole.LogInfo("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	core::utils::gConsole.LogInfo("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	core::utils::gConsole.LogInfo("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 	core::utils::gConsole.LogInfo("TiledForwardRenderer::Init screenSize: ({},{}), targetSize: ({},{}),",
 		screenSize.Width, screenSize.Height, targetsSize.Width, targetsSize.Height);
 

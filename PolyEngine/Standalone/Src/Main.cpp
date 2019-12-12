@@ -72,7 +72,7 @@ int main(int argc, char* args[])
 		ASSERTE(false, "SDL initialization failed!");
 		return 1;
 	}
-	core::utils::gConsole.LogDebug("SDL initialized.");
+	core::utils::gConsole.LogDebug("SDL initialized - Standalone main.");
 
 	// Initial screen size
 	Poly::ScreenSize screenSize;
@@ -86,7 +86,8 @@ int main(int argc, char* args[])
 		SDL_WINDOWPOS_CENTERED,
 		screenSize.Width,
 		screenSize.Height,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE
+		//SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE // Cannot use SDL_WINDOW_OPENGL and SDL_WINDOW_VULKAN simultaneously
+		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
 	);
 
 	ASSERTE(window, "Failed to create standalone window!");
@@ -97,22 +98,27 @@ int main(int argc, char* args[])
 
 	// Load rendering device library
 	core::storage::String p = Poly::gAssetsPathConfig.GetRenderingDeviceLibPath();
+	//core::utils::gConsole.LogDebug(p);
+
+	//core::storage::String p = "./PolyRenderingDeviceVK.dll";
+
 	auto loadRenderingDevice = ::pe::core::utils::LoadFunctionFromSharedLibrary<CreateRenderingDeviceFunc>(p.GetCStr(), "PolyCreateRenderingDevice");
 	if (!loadRenderingDevice.FunctionValid())
 		return 1;
-	core::utils::gConsole.LogDebug("Library libRenderingDevice loaded.");
+	core::utils::gConsole.LogDebug("Library libRenderingDevice loaded");
 
 	// Load game library
+	core::utils::gConsole.LogDebug(Poly::gAssetsPathConfig.GetGameLibPath().GetCStr());
 	auto loadGame = ::pe::core::utils::LoadFunctionFromSharedLibrary<CreateGameFunc>(Poly::gAssetsPathConfig.GetGameLibPath().GetCStr(), "CreateGame");
 	if (!loadGame.FunctionValid())
 		return 1;
-	core::utils::gConsole.LogDebug("Library libGame loaded.");
+	core::utils::gConsole.LogDebug("Library libGame loaded");
 		
 	std::unique_ptr<Poly::IGame> game = std::unique_ptr<Poly::IGame>(loadGame());
 	core::utils::gConsole.LogDebug("Game created");
 
 	std::unique_ptr<Poly::IRenderingDevice> device = std::unique_ptr<Poly::IRenderingDevice>(loadRenderingDevice(window, screenSize));
-	core::utils::gConsole.LogDebug("Device created.");
+	core::utils::gConsole.LogDebug("Rendering device created");
 
 	Engine->Init(std::move(game), std::move(device));
 	Engine->StartGame();
@@ -273,26 +279,41 @@ void HandleWindowEvent(const SDL_WindowEvent& windowEvent)
 {
 	switch (windowEvent.event)
 	{
-	case SDL_WINDOWEVENT_RESIZED:
-	case SDL_WINDOWEVENT_SIZE_CHANGED:
-	{
-		Poly::ScreenSize screenSize;
-		screenSize.Width = windowEvent.data1;
-		screenSize.Height = windowEvent.data2;
-		Poly::gEngine->ResizeScreen(screenSize);
-		break;
-	}
-	case SDL_WINDOWEVENT_LEAVE:
-	case SDL_WINDOWEVENT_FOCUS_LOST:
-		UpdateMouseState(eMouseStateChange::WINDOW_LEAVE);
-		break;
-	case SDL_WINDOWEVENT_ENTER:
-	case SDL_WINDOWEVENT_FOCUS_GAINED:	
-		UpdateMouseState(eMouseStateChange::WINDOW_ENTER);
-		break;
-	default:
-		core::utils::gConsole.LogDebug("Not handled SDL window event, code: {}", GetWindowEventName(windowEvent));
-		break;
+		case SDL_WINDOWEVENT_SHOWN:
+		case SDL_WINDOWEVENT_HIDDEN:
+		case SDL_WINDOWEVENT_EXPOSED:
+		case SDL_WINDOWEVENT_MOVED:
+		{
+			break;
+		}
+		case SDL_WINDOWEVENT_RESIZED:
+		{
+			break;
+		}
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+		{
+			Poly::ScreenSize screenSize;
+			screenSize.Width = windowEvent.data1;
+			screenSize.Height = windowEvent.data2;
+
+			if (screenSize.Width > 1 && screenSize.Height > 1)
+			{
+				Poly::gEngine->ResizeScreen(screenSize);
+			}		
+			break;
+		}
+		case SDL_WINDOWEVENT_MINIMIZED:
+		case SDL_WINDOWEVENT_LEAVE:
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			UpdateMouseState(eMouseStateChange::WINDOW_LEAVE);
+			break;
+		case SDL_WINDOWEVENT_ENTER:
+		case SDL_WINDOWEVENT_FOCUS_GAINED:	
+			UpdateMouseState(eMouseStateChange::WINDOW_ENTER);
+			break;
+		default:
+			core::utils::gConsole.LogDebug("Not handled SDL window event, code: {}", GetWindowEventName(windowEvent));
+			break;
 	}
 }
 
