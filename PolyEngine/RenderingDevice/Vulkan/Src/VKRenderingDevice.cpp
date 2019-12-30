@@ -44,6 +44,8 @@ VKRenderingDevice::VKRenderingDevice(SDL_Window* window, const ScreenSize& size)
 
 	pickPhysicalDevice();
 	createLogicalDevice();
+
+	
 }
 
 VKRenderingDevice::~VKRenderingDevice()
@@ -167,7 +169,6 @@ std::vector<const char*> VKRenderingDevice::getRequiredExtensions()
 		ASSERTE(false, "Getting SDL Vulkan instance extensions failed");
 	}
 		
-
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr); 
 	std::vector<VkExtensionProperties> extensions(extensionCount);
@@ -290,7 +291,7 @@ void VKRenderingDevice::pickPhysicalDevice()
 
 	if (PRINT_AVAILABLE_DEVICES)
 	{
-		core::utils::gConsole.LogInfo("Available devices:");
+		core::utils::gConsole.LogInfo("Available physical devices:");
 		for (const auto& device : devices)
 		{
 			VkPhysicalDeviceProperties deviceProperties;
@@ -302,6 +303,7 @@ void VKRenderingDevice::pickPhysicalDevice()
 			core::utils::gConsole.LogInfo(" - {}", deviceProperties.deviceName);
 		}
 	}
+
 	for (const auto& device : devices)
 	{
 		if (isDeviceSuitable(device))
@@ -318,6 +320,8 @@ void VKRenderingDevice::pickPhysicalDevice()
 	VkPhysicalDeviceProperties deviceProperties;
 	vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
 	core::utils::gConsole.LogInfo("{} GPU selected", deviceProperties.deviceName);
+
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
 }
 
 bool VKRenderingDevice::isDeviceSuitable(VkPhysicalDevice device)
@@ -483,7 +487,7 @@ void VKRenderingDevice::createLogicalDevice()
 }
 
 
-// ---------------------------- Engine api --------------
+// ---------------------------- Engine Renderer API Implementation  ----------------------------
 
 using MeshQueue = core::storage::PriorityQueue<const MeshRenderingComponent*, SceneView::DistanceToCameraComparator>;
 
@@ -511,8 +515,6 @@ IRendererInterface* VKRenderingDevice::CreateRenderer()
 	default:
 		ASSERTE(false, "Creating renderer failed - Unknown eRenderingModeType");
 	}
-
-	
 
 	return renderer;
 }

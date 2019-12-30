@@ -5,16 +5,38 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 
+#define VK_CHECK(call, message) \
+	do { \
+		ASSERTE(call == VK_SUCCESS, message); \
+	} while (0)
+
+
 namespace Poly {
 
-	uint32_t findMemoryType(VkPhysicalDevice &physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties)
-	{
-		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+	//inline uint32_t findMemoryType(VkPhysicalDevice &physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) 
+	//{
+	//	VkPhysicalDeviceMemoryProperties memProperties;
+	//	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
 
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) // Iterate over memory types
+	//	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) // Iterate over memory types
+	//	{
+	//		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+	//		{
+	//			return i;
+	//		}
+	//	}
+
+	//	ASSERTE(false, "Finding suitable memory type failed");
+	//	return 0;
+	//}
+
+	
+
+	inline uint32_t findMemoryType(const VkPhysicalDeviceMemoryProperties& memoryProperties, uint32_t typeFilter, VkMemoryPropertyFlags propertyFlags)
+	{
+		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) // Iterate over memory types
 		{
-			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+			if ((typeFilter & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags)
 			{
 				return i;
 			}
@@ -23,15 +45,6 @@ namespace Poly {
 		ASSERTE(false, "Finding suitable memory type failed");
 		return 0;
 	}
-
-
-
-
-
-
-
-
-
 
 	struct Vertex
 	{

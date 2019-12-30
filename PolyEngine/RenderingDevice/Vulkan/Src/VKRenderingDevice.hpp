@@ -12,8 +12,6 @@
 
 struct SDL_Window;
 
-
-
 namespace pe::core::math
 {
 	class AARect;
@@ -28,7 +26,6 @@ namespace Poly
 	class RenderingTargetBase;
 	class IRendererInterface;
 
-	
 	// Holds things that are common for many renderers
 	class DEVICE_DLLEXPORT VKRenderingDevice : public IRenderingDevice
 	{
@@ -68,7 +65,6 @@ namespace Poly
 		VKRenderingDevice(const VKRenderingDevice&) = delete;
 		void operator=(const VKRenderingDevice&) = delete;
 
-		
 		void Init() override;
 		void Resize(const ScreenSize& size) override;
 		void RenderWorld(Scene* world) override;
@@ -91,6 +87,9 @@ namespace Poly
 
 		IRendererInterface* renderer;
 		eRendererType rendererType;
+
+		VkPhysicalDeviceMemoryProperties memoryProperties;
+		
 
 		const std::vector<const char*> validationLayers = { // Validation layers required (to load)
 			"VK_LAYER_KHRONOS_validation"
@@ -123,7 +122,7 @@ namespace Poly
 
 		void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
-		// API
+		// Engine Renderer API 
 		IRendererInterface* CreateRenderer();
 		void FillSceneView(SceneView& sceneView);		
 		std::unique_ptr<ITextureDeviceProxy> CreateTexture(size_t width, size_t height, size_t channels, eTextureUsageType usage) override;

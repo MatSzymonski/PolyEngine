@@ -28,8 +28,7 @@ namespace Poly {
 		void Render(const SceneView& sceneView) override;
 		void Deinit() override;
 	
-		VkCommandBuffer beginSingleTimeCommands();
-		void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+
 
 	private:
 		VkSwapchainKHR swapChain;
@@ -121,18 +120,9 @@ namespace Poly {
 		void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 		
-		void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-		void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+		//void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+		//void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 		void updateUniformBuffer(uint32_t currentImage);
-		
-
-
-
-
-
-		
-
-		// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- //
-
+	
 	};
 }

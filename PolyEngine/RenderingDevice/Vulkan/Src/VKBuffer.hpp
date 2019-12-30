@@ -1,28 +1,18 @@
-//#pragma once
-//
-//
-//#include <vulkan/vulkan.h>
-//
-//class VKBuffer
-//{
-//private:
-//	VkDevice device;
-//	VkBuffer vertexBuffer;
-//	VkDeviceMemory vertexBufferMemory;
-//	VkPhysicalDevice physicalDevice;
-//
-//
-//
-//
-//public:
-//	VKBuffer(VkDevice device, VkPhysicalDevice physicalDevice);
-//	~VKBuffer();
-//
-//	//void createVertexBuffer()
-//
-//	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-//	void createBuffer(VkDevice device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-//
-//	
-//};
-//
+#pragma once
+
+#include <vulkan/vulkan.h>
+
+
+struct Buffer
+{
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	VkDeviceSize size;
+	VkMemoryPropertyFlags memoryFlags;
+	void* data;
+};
+
+void createBuffer(Buffer& buffer, VkDevice device, VkDeviceSize size, const VkPhysicalDeviceMemoryProperties& memoryProperties, VkMemoryPropertyFlags propertyFlags, VkBufferUsageFlags usageFlags);
+void uploadBuffer(Buffer& buffer, VkDevice device, const void* data);
+void copyBuffer(Buffer& srcBuffer, Buffer& dstBuffer, VkDeviceSize size);
+void destroyBuffer(const Buffer& buffer, VkDevice device);

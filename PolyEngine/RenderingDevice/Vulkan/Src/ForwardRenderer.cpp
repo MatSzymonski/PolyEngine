@@ -4,6 +4,8 @@
 #include <Configs/AssetsPathConfig.hpp>
 #include "VKRenderingDevice.hpp"
 #include "VKUtils.hpp"
+#include <VKBuffer.hpp>
+#include <CommandBuffer.hpp>
 
 //#include <vulkan/vulkan.h>
 #include <fstream>
@@ -14,7 +16,7 @@
 using namespace Poly;
 using MeshQueue = core::storage::PriorityQueue<const MeshRenderingComponent*, SceneView::DistanceToCameraComparator>;
 
-ForwardRenderer::ForwardRenderer(VKRenderingDevice * renderingDeviceInterface)
+ForwardRenderer::ForwardRenderer(VKRenderingDevice * renderingDeviceInterface) 
 	: IRendererInterface(renderingDeviceInterface),
 	lastViewportRect(::pe::core::math::Vector2f::ZERO, core::math::Vector2f::ONE)
 {
@@ -46,8 +48,7 @@ void ForwardRenderer::Init()
 
 void ForwardRenderer::Deinit()
 {
-	cleanUp();
-	
+	cleanUp();	
 }
 
 void ForwardRenderer::cleanUp()
@@ -80,8 +81,6 @@ void ForwardRenderer::cleanUp()
 
 void ForwardRenderer::cleanUpSwapChain()
 {
-	//auto device = RDI->device;
-	
 	vkDestroyImageView(RDI->device, colorImageView, nullptr);
 	vkDestroyImage(RDI->device, colorImage, nullptr);
 	vkFreeMemory(RDI->device, colorImageMemory, nullptr);
@@ -137,9 +136,6 @@ void ForwardRenderer::recreateSwapChain()
 	createDescriptorSets();
 	createCommandBuffers();
 }
-
-
-
 
 void ForwardRenderer::createSwapChain()
 {
@@ -532,9 +528,9 @@ void ForwardRenderer::createFramebuffers()
 void ForwardRenderer::createTextureImage()
 {
 	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels = stbi_load("C:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/CommonBuild/RenderingDevice/Vulkan/PolyRenderingDeviceVK/res/Textures/PolyEngine_logo.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha); // Load image from file
+	//stbi_uc* pixels = stbi_load("C:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/CommonBuild/RenderingDevice/Vulkan/PolyRenderingDeviceVK/res/Textures/PolyEngine_logo.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha); // Load image from file
+	stbi_uc* pixels = stbi_load("D:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/RenderingDevice/Vulkan/Src/res/Textures/PolyEngine_logo.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha); // Load image from file
 	VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 bytes per pixel
-
 	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1; // Calculates the number of levels in the mipmap chain 
 
 	if (!pixels)
@@ -544,6 +540,10 @@ void ForwardRenderer::createTextureImage()
 
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
+
+
+	//createBuffer()
+
 	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory); // Create staging buffer
 
 	void* data;
@@ -853,7 +853,9 @@ VkShaderModule ForwardRenderer::createShaderModule(const std::vector<char>& code
 std::vector<char> ForwardRenderer::readFile(const std::string& filename)
 {
 	core::storage::StringBuilder sb;
-	sb.AppendFormat("C:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/CommonBuild/RenderingDevice/Vulkan/PolyRenderingDeviceVK/{}", filename);
+	//sb.AppendFormat("C:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/CommonBuild/RenderingDevice/Vulkan/PolyRenderingDeviceVK/{}", filename);
+	sb.AppendFormat("D:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/RenderingDevice/Vulkan/Src/{}", filename);
+
 	core::storage::String path = sb.GetString();
 
 	//std::cout << "Current path is " << std::filesystem::current_path() << '\n';
@@ -1008,7 +1010,7 @@ void ForwardRenderer::generateMipmaps(VkImage image, VkFormat imageFormat, int32
 		ASSERTE(false, "Generating mipmaps failed - Texture image format does not support linear blitting");
 	}
 
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
 
 	VkImageMemoryBarrier barrier = {};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1087,7 +1089,7 @@ void ForwardRenderer::generateMipmaps(VkImage image, VkFormat imageFormat, int32
 		0, nullptr,
 		1, &barrier);
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
 }
 
 void ForwardRenderer::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
@@ -1119,7 +1121,10 @@ void ForwardRenderer::createImage(uint32_t width, uint32_t height, uint32_t mipL
 	VkMemoryAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(RDI->physicalDevice, memRequirements.memoryTypeBits, properties);
+	//allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, properties);
+
+	allocInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
+
 
 	if (vkAllocateMemory(RDI->device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) // Allocate memory for an image
 	{
@@ -1131,7 +1136,7 @@ void ForwardRenderer::createImage(uint32_t width, uint32_t height, uint32_t mipL
 
 void ForwardRenderer::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
 {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
 
 	VkImageMemoryBarrier barrier = {}; // Create image memory barrier to synchronize access to image and transition image layouts  
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1182,12 +1187,12 @@ void ForwardRenderer::transitionImageLayout(VkImage image, VkFormat format, VkIm
 		1, &barrier // Specify what to create (image memory barriers)
 	);
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
 }
 
 void ForwardRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) // Specify which part of the buffer is going to be copied to which part of the image and copy them
 {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
 
 	VkBufferImageCopy region = {}; // Defines the regions of buffers to copy
 	region.bufferOffset = 0; // Specify the byte offset in the buffer at which the pixel values start
@@ -1206,14 +1211,14 @@ void ForwardRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t
 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region); // Transfer the contents of the buffer to image (The fourth parameter indicates which layout the image is currently using)
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
 }
 
 
 
 void ForwardRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
 
 	VkBufferCopy copyRegion = {}; // Defines the regions of buffers to copy
 	copyRegion.srcOffset = 0; // Optional
@@ -1221,7 +1226,7 @@ void ForwardRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDevic
 	copyRegion.size = size;
 	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion); // Transfer the contents of the buffers
 
-	endSingleTimeCommands(commandBuffer);
+	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
 }
 
 void ForwardRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
@@ -1243,7 +1248,9 @@ void ForwardRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, 
 	VkMemoryAllocateInfo allocInfo = {}; // Memory allocation parameters
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(RDI->physicalDevice, memRequirements.memoryTypeBits, properties); // Find memory with flags (eg available to write for CPU)
+	//allocInfo.memoryTypeIndex = findMemoryType(RDI->physicalDevice, memRequirements.memoryTypeBits, properties); // Find memory with flags (eg available to write for CPU)
+	allocInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
+
 
 	if (vkAllocateMemory(RDI->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) // Allocate memory for buffer and store a handle in vertexBufferMemory variable
 	{
@@ -1368,40 +1375,6 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	currentFrame = (currentFrame + 1) % RDI->MAX_FRAMES_IN_FLIGHT; // Advance to the next frame
 }
 
-VkCommandBuffer ForwardRenderer::beginSingleTimeCommands()
-{
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = commandPool;
-	allocInfo.commandBufferCount = 1;
-
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(RDI->device, &allocInfo, &commandBuffer); // Allocate a temporary command buffer for memory transfer operations (which just like drawing commands are executed using command buffers)
-
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // Tell the driver that we want to use this command buffer once and wait with returning from the function until the copy operation has finished executing
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo); // Start recording the command buffer 
-
-	return commandBuffer;
-}
-
-void ForwardRenderer::endSingleTimeCommands(VkCommandBuffer commandBuffer)
-{
-	vkEndCommandBuffer(commandBuffer); // End recording
-
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(RDI->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE); // Submit the command for execution
-	vkQueueWaitIdle(RDI->graphicsQueue); // Wait for transfer to complete (different way to do this is to use fences. This approach allows to schedule multiple transfer operations and wait for all of them to complete instead of executing one at a time)
-
-	vkFreeCommandBuffers(RDI->device, commandPool, 1, &commandBuffer); // Clean up the command buffer
-}
 
 void ForwardRenderer::drawFrame()
 {
