@@ -56,10 +56,9 @@ void ForwardRenderer::cleanUp()
 	cleanUpSwapChain();
 
 	vkDestroySampler(RDI->device, textureSampler, nullptr);
-	vkDestroyImageView(RDI->device, textureImageView, nullptr);
 
-	vkDestroyImage(RDI->device, textureImage, nullptr);
-	vkFreeMemory(RDI->device, textureImageMemory, nullptr);
+	destroyImage(textureImage, RDI->device);
+
 
 	vkDestroyDescriptorSetLayout(RDI->device, descriptorSetLayout, nullptr);
 
@@ -84,13 +83,8 @@ void ForwardRenderer::cleanUp()
 
 void ForwardRenderer::cleanUpSwapChain()
 {
-	vkDestroyImageView(RDI->device, colorImageView, nullptr);
-	vkDestroyImage(RDI->device, colorImage, nullptr);
-	vkFreeMemory(RDI->device, colorImageMemory, nullptr);
-
-	vkDestroyImageView(RDI->device, depthImageView, nullptr);
-	vkDestroyImage(RDI->device, depthImage, nullptr);
-	vkFreeMemory(RDI->device, depthImageMemory, nullptr);
+	destroyImage(colorTarget, RDI->device);
+	destroyImage(depthTarget, RDI->device);
 
 	for (auto framebuffer : swapChainFramebuffers)
 	{
@@ -103,16 +97,12 @@ void ForwardRenderer::cleanUpSwapChain()
 	vkDestroyPipelineLayout(RDI->device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(RDI->device, renderPass, nullptr);
 
-	for (auto imageView : swapChainImageViews)
-	{
-		vkDestroyImageView(RDI->device, imageView, nullptr);
-	}
-
 	vkDestroySwapchainKHR(RDI->device, swapChain, nullptr);
 
 	for (size_t i = 0; i < swapChainImages.size(); i++)
 	{
-		destroyBuffer(uniformBuffers[i], RDI->device);
+		destroyImage(swapChainImages[i], RDI->device);
+		//destroyBuffer(uniformBuffers[i], RDI->device);
 
 	//	vkDestroyBuffer(RDI->device, uniformBuffers[i], nullptr);
 	//	vkFreeMemory(RDI->device, uniformBuffersMemory[i], nullptr);
@@ -197,21 +187,41 @@ void ForwardRenderer::createSwapChain()
 		ASSERTE(false, "Creating swapchain failed");
 	}
 
+
 	vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, nullptr); // Query the final number of images in swapchain
-	swapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, swapChainImages.data()); // Get image handles
+	std::vector<VkImage> images(imageCount);
+	vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, images.data());
 
 	swapChainImageFormat = surfaceFormat.format; // Store the format for the swapchain images in member variables for later use
 	swapChainExtent = extent; // Store the extent for the swapchain images in member variables for later use
+
+	swapChainImages.resize(imageCount);
+	for (size_t i = 0; i < swapChainImages.size(); i++)
+	{
+		swapChainImages[i].image = images[i];
+		swapChainImages[i].imageView = createImageView(swapChainImages[i].image, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, RDI->device);
+		//swapChainImageViews[i] =     createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	}
+
+
+
+
+	//vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, nullptr); // Query the final number of images in swapchain
+	//swapChainImages.resize(imageCount);
+	//vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, swapChainImages.data()); // Get image handles
+
+	//swapChainImageFormat = surfaceFormat.format; // Store the format for the swapchain images in member variables for later use
+	//swapChainExtent = extent; // Store the extent for the swapchain images in member variables for later use
+	
 }
 
 void ForwardRenderer::createImageViews()
 {
-	swapChainImageViews.resize(swapChainImages.size()); // Resize the list to fit all of the image views
+	swapChainImages.resize(swapChainImages.size()); // Resize the list to fit all of the image views
 
 	for (size_t i = 0; i < swapChainImages.size(); i++)
 	{
-		swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		//swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 	}
 }
 
@@ -487,31 +497,25 @@ void ForwardRenderer::createCommandPool()
 
 void ForwardRenderer::createColorResources()
 {
-	VkFormat colorFormat = swapChainImageFormat;
-
-	// In case of images with more than one sample per pixel only one mipmap level can be used
-	createImage(swapChainExtent.width, swapChainExtent.height, 1, RDI->msaaSamples, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, colorImage, colorImageMemory);
-	colorImageView = createImageView(colorImage, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	createImage(colorTarget, swapChainExtent.width, swapChainExtent.height, 1, RDI->msaaSamples, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void ForwardRenderer::createDepthResources()
 {
-	VkFormat depthFormat = findDepthFormat(); // Find best supported format for the depth image
-
-	createImage(swapChainExtent.width, swapChainExtent.height, 1, RDI->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-	depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	VkFormat depthFormat = findDepthFormat();
+	createImage(depthTarget, swapChainExtent.width, swapChainExtent.height, 1, RDI->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
 void ForwardRenderer::createFramebuffers()
 {
-	swapChainFramebuffers.resize(swapChainImageViews.size());
+	swapChainFramebuffers.resize(swapChainImages.size());
 
-	for (size_t i = 0; i < swapChainImageViews.size(); i++)
+	for (size_t i = 0; i < swapChainImages.size(); i++)
 	{
 		std::array<VkImageView, 3> attachments = {
-			colorImageView,
-			depthImageView,
-			swapChainImageViews[i]
+			colorTarget.imageView,
+			depthTarget.imageView,
+			swapChainImages[i].imageView
 		};
 
 		VkFramebufferCreateInfo framebufferInfo = {};
@@ -539,26 +543,27 @@ void ForwardRenderer::createTextureImage()
 	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1; // Calculates the number of levels in the mipmap chain 
 
 	if (!pixels)
-	{
 		ASSERTE(false, "Loading texture image failed");
-	}
 
 	Buffer stagingBuffer;
 	createBuffer(stagingBuffer, RDI->device, imageSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 	uploadBuffer(stagingBuffer, RDI->device, pixels);
 	stbi_image_free(pixels); // Clean up original pixel array (not needed anymore)
-	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory); // Create actual image (to be stored in GPU)
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels); // Transition the image to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	copyBufferToImage(stagingBuffer.buffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight)); // Execute the buffer to image copy operation																												   
+
+
+	createImage(textureImage, texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	transitionImageLayout(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, RDI->device, commandPool, RDI->graphicsQueue); // Transition the image to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	copyBufferToImage(stagingBuffer.buffer, textureImage.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), RDI->device, commandPool, RDI->graphicsQueue); // Execute the buffer to image copy operation																												   
 	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 
 	destroyBuffer(stagingBuffer, RDI->device);
-	generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels); // Generate mipmaps for this texture image
+	generateMipmaps(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels); // Generate mipmaps for this texture image
 }
 
 void ForwardRenderer::createTextureImageView()
 {
-	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+	//textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 }
 
 void ForwardRenderer::createTextureSampler()
@@ -667,7 +672,7 @@ void ForwardRenderer::createDescriptorSets()
 
 		VkDescriptorImageInfo imageInfo = {};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = textureImageView;
+		imageInfo.imageView = textureImage.imageView;
 		imageInfo.sampler = textureSampler;
 
 		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
@@ -908,31 +913,7 @@ VkExtent2D ForwardRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap
 
 
 
-VkImageView ForwardRenderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels)
-{
-	VkImageViewCreateInfo viewInfo = {};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; // Describes how to treat images (1D texture, 2D texture, 3D texture or cube map)
-	viewInfo.format = format;
-	viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; // Allows you to swizzle the color channels around
-	viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-	viewInfo.subresourceRange.aspectMask = aspectFlags; // Describes what the image's purpose is and which part of the image should be accessed (Color, depth, stencil, etc)
-	viewInfo.subresourceRange.baseMipLevel = 0; // No mipmapping
-	viewInfo.subresourceRange.levelCount = mipLevels;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
 
-	VkImageView imageView;
-	if (vkCreateImageView(RDI->device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Creating texture image view failed");
-	}
-
-	return imageView;
-}
 
 
 
@@ -1061,170 +1042,7 @@ void ForwardRenderer::generateMipmaps(VkImage image, VkFormat imageFormat, int32
 	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
 }
 
-void ForwardRenderer::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
-{
-	VkImageCreateInfo imageInfo = {};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D; 
-	imageInfo.extent.width = width; 
-	imageInfo.extent.height = height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = mipLevels;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format; 
-	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
-	imageInfo.usage = usage;
-	imageInfo.samples = numSamples; 
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; 
-	imageInfo.flags = 0;
 
-	if (vkCreateImage(RDI->device, &imageInfo, nullptr, &image) != VK_SUCCESS) 
-	{
-		ASSERTE(false, "Creating image failed");
-	}
-
-	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(RDI->device, image, &memRequirements);
-
-	VkMemoryAllocateInfo allocationInfo = {};
-	allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocationInfo.allocationSize = memRequirements.size;
-	allocationInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
-
-	if (vkAllocateMemory(RDI->device, &allocationInfo, nullptr, &imageMemory) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Allocating image memory failed");
-	}
-
-	vkBindImageMemory(RDI->device, image, imageMemory, 0);
-}
-
-void ForwardRenderer::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
-{
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
-
-	VkImageMemoryBarrier barrier = {}; // Create image memory barrier to synchronize access to image and transition image layouts  
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = oldLayout; // Specify layout transition
-	barrier.newLayout = newLayout; // Specify layout transition
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // For using barrier to transfer queue family ownership
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; // For using barrier to transfer queue family ownership
-	barrier.image = image; // Specify the image that is affected 
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // subresourceRange specify the specific part of the image
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = mipLevels;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = 0; // TODO
-	barrier.dstAccessMask = 0; // TODO
-
-	VkPipelineStageFlags sourceStage;
-	VkPipelineStageFlags destinationStage;
-
-	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) // Undefined -> transfer destination transition (don't need to wait on anything)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; // The earliest possible pipeline stage (is not a real stage, It is a pseudo-stage where transfers happen)
-		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) // Transfer destination -> shader transition (Shader reads should wait on transfer writes, specifically the shader reads in the fragment shader, because that's where texture is used)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT; // Transition should occur in the pipeline transfer stage, since writes don't have to wait on anything)
-		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; // Barrier before fragmen shader (since it can read from unfinished image)
-	}
-	else
-	{
-		ASSERTE(false, "Transitioning image layout failed - Unsupported layout transition");
-	}
-
-	vkCmdPipelineBarrier( // Submit pipeline barrier
-		commandBuffer,
-		sourceStage, // Specify the pipeline stage in which operations occur that should happen before the barrier
-		destinationStage, // Specify the pipeline stage in which operations will wait on the barrier
-		0, // (Whether turn the barrier into a per-region condition - That means that the implementation is allowed to already begin reading from the parts of a resource that were written so far)
-		0, nullptr, // Specify what to create (memory barriers)
-		0, nullptr, // Specify what to create (buffer memory barriers)
-		1, &barrier // Specify what to create (image memory barriers)
-	);
-
-	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
-}
-
-void ForwardRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) // Specify which part of the buffer is going to be copied to which part of the image and copy them
-{
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
-
-	VkBufferImageCopy region = {}; // Defines the regions of buffers to copy
-	region.bufferOffset = 0; // Specify the byte offset in the buffer at which the pixel values start
-	region.bufferRowLength = 0; // Specify how the pixels are laid out in memory 
-	region.bufferImageHeight = 0; // Specify how the pixels are laid out in memory (padding bytes between rows)
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.layerCount = 1;
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = { // Specify to which part of the image we want to copy the pixels
-		width,
-		height,
-		1
-	};
-
-	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region); // Transfer the contents of the buffer to image (The fourth parameter indicates which layout the image is currently using)
-
-	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
-}
-
-
-
-//void ForwardRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-//{
-//	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
-//
-//	VkBufferCopy copyRegion = {}; // Defines the regions of buffers to copy
-//	copyRegion.srcOffset = 0; // Optional
-//	copyRegion.dstOffset = 0; // Optional
-//	copyRegion.size = size;
-//	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion); // Transfer the contents of the buffers
-//
-//	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
-//}
-//
-//void ForwardRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
-//{
-//	VkBufferCreateInfo bufferInfo = {};
-//	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-//	bufferInfo.size = size; // Size of the buffer
-//	bufferInfo.usage = usage; // Indicates purpose of the data (possible to specify multiple using bitwise or)
-//	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Sharing between different queue families (in this case only graphic queue so no sharing)
-//
-//	if (vkCreateBuffer(RDI->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-//	{
-//		ASSERTE(false, "Creating buffer failed"); // Create a buffer and store a handle in vertexBuffer variable
-//	}
-//
-//	VkMemoryRequirements memRequirements;
-//	vkGetBufferMemoryRequirements(RDI->device, buffer, &memRequirements);
-//
-//	VkMemoryAllocateInfo allocInfo = {}; // Memory allocation parameters
-//	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//	allocInfo.allocationSize = memRequirements.size;
-//	//allocInfo.memoryTypeIndex = findMemoryType(RDI->physicalDevice, memRequirements.memoryTypeBits, properties); // Find memory with flags (eg available to write for CPU)
-//	allocInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
-//
-//
-//	if (vkAllocateMemory(RDI->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) // Allocate memory for buffer and store a handle in vertexBufferMemory variable
-//	{
-//		ASSERTE(false, "Allocating buffer memory failed");
-//	}
-//
-//	vkBindBufferMemory(RDI->device, buffer, bufferMemory, 0); // Associate memory with the buffer (fourth parameter is the offset within the region of memory)
-//}
 
 
 
