@@ -1,4 +1,4 @@
-#include "VKBuffer.hpp"
+#include <Resources.hpp>
 
 #include <Configs/AssetsPathConfig.hpp>
 #include <VKUtils.hpp>
@@ -44,13 +44,21 @@ void createBuffer(Buffer& buffer, VkDevice device, VkDeviceSize size, const VkPh
 	buffer.data = 0;
 	
 }
-
-void uploadBuffer(Buffer & buffer, VkDevice device, void* data)
+//void uploadBuffer(Buffer & buffer, VkDevice device, void* data)
+void uploadBuffer(Buffer& buffer, VkDevice device, const void* data)
 {
 	if (!(buffer.memoryFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
 		ASSERTE(false, "Uploading to buffer failed. Buffer is not host visible");
 
-	vkMapMemory(device, buffer.memory, 0, buffer.size, 0, &data);
+	/*vkMapMemory(device, buffer.memory, 0, buffer.size, 0, &data);
+	memcpy(buffer.data, data, buffer.size);
+	vkUnmapMemory(device, buffer.memory);*/
+
+	void* mapData = 0;
+	vkMapMemory(device, buffer.memory, 0, buffer.size, 0, &mapData);
+	buffer.data = mapData;
+
+
 	memcpy(buffer.data, data, buffer.size);
 	vkUnmapMemory(device, buffer.memory);
 }
@@ -76,4 +84,5 @@ void destroyBuffer(const Buffer& buffer, VkDevice device)
 {
 	vkDestroyBuffer(device, buffer.buffer, 0);
 	vkFreeMemory(device, buffer.memory, 0);
+	//delete &buffer; //TODO(HIST0R) Is it really needed?
 }

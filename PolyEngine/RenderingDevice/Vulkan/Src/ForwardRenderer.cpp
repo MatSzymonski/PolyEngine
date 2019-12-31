@@ -4,7 +4,7 @@
 #include <Configs/AssetsPathConfig.hpp>
 #include "VKRenderingDevice.hpp"
 #include "VKUtils.hpp"
-#include <VKBuffer.hpp>
+
 #include <CommandBuffer.hpp>
 
 //#include <vulkan/vulkan.h>
@@ -63,11 +63,14 @@ void ForwardRenderer::cleanUp()
 
 	vkDestroyDescriptorSetLayout(RDI->device, descriptorSetLayout, nullptr);
 
-	vkDestroyBuffer(RDI->device, indexBuffer, nullptr);
-	vkFreeMemory(RDI->device, indexBufferMemory, nullptr);
+	destroyBuffer(indexBuffer, RDI->device);
+	//vkDestroyBuffer(RDI->device, indexBuffer, nullptr);
+	//vkFreeMemory(RDI->device, indexBufferMemory, nullptr);
 
-	vkDestroyBuffer(RDI->device, vertexBuffer, nullptr);
-	vkFreeMemory(RDI->device, vertexBufferMemory, nullptr);
+	destroyBuffer(vertexBuffer, RDI->device);
+
+	//vkDestroyBuffer(RDI->device, vertexBuffer, nullptr);
+	//vkFreeMemory(RDI->device, vertexBufferMemory, nullptr);
 
 	for (size_t i = 0; i < RDI->MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -109,8 +112,10 @@ void ForwardRenderer::cleanUpSwapChain()
 
 	for (size_t i = 0; i < swapChainImages.size(); i++)
 	{
-		vkDestroyBuffer(RDI->device, uniformBuffers[i], nullptr);
-		vkFreeMemory(RDI->device, uniformBuffersMemory[i], nullptr);
+		destroyBuffer(uniformBuffers[i], RDI->device);
+
+	//	vkDestroyBuffer(RDI->device, uniformBuffers[i], nullptr);
+	//	vkFreeMemory(RDI->device, uniformBuffersMemory[i], nullptr);
 	}
 
 	vkDestroyDescriptorPool(RDI->device, descriptorPool, nullptr);
@@ -538,31 +543,16 @@ void ForwardRenderer::createTextureImage()
 		ASSERTE(false, "Loading texture image failed");
 	}
 
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-
-
-	//createBuffer()
-
-	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory); // Create staging buffer
-
-	void* data;
-	vkMapMemory(RDI->device, stagingBufferMemory, 0, imageSize, 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
-	memcpy(data, pixels, static_cast<size_t>(imageSize)); // Copy the vertex data to the buffer
-	vkUnmapMemory(RDI->device, stagingBufferMemory); // Unmap the buffer memory
-
+	Buffer stagingBuffer;
+	createBuffer(stagingBuffer, RDI->device, imageSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	uploadBuffer(stagingBuffer, RDI->device, pixels);
 	stbi_image_free(pixels); // Clean up original pixel array (not needed anymore)
-
 	createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory); // Create actual image (to be stored in GPU)
-
 	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels); // Transition the image to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight)); // Execute the buffer to image copy operation
+	copyBufferToImage(stagingBuffer.buffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight)); // Execute the buffer to image copy operation																												   
 	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
-	//transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mipLevels); // Transition the image to prepare it for shader access
 
-	vkDestroyBuffer(RDI->device, stagingBuffer, nullptr);
-	vkFreeMemory(RDI->device, stagingBufferMemory, nullptr);
-
+	destroyBuffer(stagingBuffer, RDI->device);
 	generateMipmaps(textureImage, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels); // Generate mipmaps for this texture image
 }
 
@@ -600,55 +590,34 @@ void ForwardRenderer::createTextureSampler()
 void ForwardRenderer::createVertexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory); // Create staging buffer in CPU accesible memory (With flag that buffer can be used as source in a memory transfer operation)
-
-	void* data;
-	vkMapMemory(RDI->device, stagingBufferMemory, 0, bufferSize, 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
-	memcpy(data, vertices.data(), (size_t)bufferSize); // Copy the vertex data to the buffer
-	vkUnmapMemory(RDI->device, stagingBufferMemory); // Unmap the buffer memory
-
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory); // Create vertex buffer in GPU local memory (With flag that buffer can be used as destination in a memory transfer operation)
-
-	copyBuffer(stagingBuffer, vertexBuffer, bufferSize); // Use memory transfer operation from queue family (Since vertex buffer is not accessible for CPU vkMapMemory cannot be used)
-
-	vkDestroyBuffer(RDI->device, stagingBuffer, nullptr);
-	vkFreeMemory(RDI->device, stagingBufferMemory, nullptr);
+	Buffer stagingBuffer;
+	createBuffer(stagingBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	uploadBuffer(stagingBuffer, RDI->device, vertices.data());
+	createBuffer(vertexBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	copyBuffer(stagingBuffer, vertexBuffer, bufferSize, RDI->device, commandPool, RDI->graphicsQueue);
+	destroyBuffer(stagingBuffer, RDI->device);
 }
 
 void ForwardRenderer::createIndexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-	void* data;
-	vkMapMemory(RDI->device, stagingBufferMemory, 0, bufferSize, 0, &data);
-	memcpy(data, indices.data(), (size_t)bufferSize);
-	vkUnmapMemory(RDI->device, stagingBufferMemory);
-
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
-
-	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
-
-	vkDestroyBuffer(RDI->device, stagingBuffer, nullptr);
-	vkFreeMemory(RDI->device, stagingBufferMemory, nullptr);
+	Buffer stagingBuffer;
+	createBuffer(stagingBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	uploadBuffer(stagingBuffer, RDI->device, indices.data());
+	createBuffer(indexBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize, RDI->device, commandPool, RDI->graphicsQueue);
+	destroyBuffer(stagingBuffer, RDI->device);
 }
 
 void ForwardRenderer::createUniformBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
 	uniformBuffers.resize(swapChainImages.size());
-	uniformBuffersMemory.resize(swapChainImages.size());
 
 	for (size_t i = 0; i < swapChainImages.size(); i++) // For each swapchain image create uniform buffer (no staging buffer needed since uniform buffers will be updated each frame)
 	{
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+		createBuffer(uniformBuffers[i], RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 	}
 }
 
@@ -692,7 +661,7 @@ void ForwardRenderer::createDescriptorSets()
 	for (size_t i = 0; i < swapChainImages.size(); i++) // Configure each UBO descriptor and each image sampler descriptor
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = uniformBuffers[i];
+		bufferInfo.buffer = uniformBuffers[i].buffer;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -771,11 +740,11 @@ void ForwardRenderer::createCommandBuffers()
 
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		VkBuffer vertexBuffers[] = { vertexBuffer };
+		VkBuffer vertexBuffers[] = { vertexBuffer.buffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets); // Bind vertex buffers to bindings in shaders
 
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16); // Bind vertex buffers to bindings in shaders
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind vertex buffers to bindings in shaders
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
 
@@ -1096,21 +1065,21 @@ void ForwardRenderer::createImage(uint32_t width, uint32_t height, uint32_t mipL
 {
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D; // Specify what kind of coordinate system the texels in the image are going to be addressed
-	imageInfo.extent.width = width; // Specifies the dimensions of the image (how many texels there are on each axis)
+	imageInfo.imageType = VK_IMAGE_TYPE_2D; 
+	imageInfo.extent.width = width; 
 	imageInfo.extent.height = height;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = mipLevels;
 	imageInfo.arrayLayers = 1;
-	imageInfo.format = format; // (should use the same format for the texels as the pixels in the buffer)
+	imageInfo.format = format; 
 	imageInfo.tiling = tiling;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Start layout of the image (VK_IMAGE_LAYOUT_UNDEFINED - data will be discarded during first transition)
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
 	imageInfo.usage = usage;
-	imageInfo.samples = numSamples; // For multisampling purposes (Relevant only for images that will be used as attachments)
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // The image will only be used by one queue family (The one that supports graphics (and therefore also) transfer operations)
-	imageInfo.flags = 0; // Optional (For things like images where only certain regions are actually backed by memory)
+	imageInfo.samples = numSamples; 
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; 
+	imageInfo.flags = 0;
 
-	if (vkCreateImage(RDI->device, &imageInfo, nullptr, &image) != VK_SUCCESS) // Create image
+	if (vkCreateImage(RDI->device, &imageInfo, nullptr, &image) != VK_SUCCESS) 
 	{
 		ASSERTE(false, "Creating image failed");
 	}
@@ -1118,20 +1087,17 @@ void ForwardRenderer::createImage(uint32_t width, uint32_t height, uint32_t mipL
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(RDI->device, image, &memRequirements);
 
-	VkMemoryAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	//allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, properties);
+	VkMemoryAllocateInfo allocationInfo = {};
+	allocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocationInfo.allocationSize = memRequirements.size;
+	allocationInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
 
-	allocInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
-
-
-	if (vkAllocateMemory(RDI->device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) // Allocate memory for an image
+	if (vkAllocateMemory(RDI->device, &allocationInfo, nullptr, &imageMemory) != VK_SUCCESS)
 	{
 		ASSERTE(false, "Allocating image memory failed");
 	}
 
-	vkBindImageMemory(RDI->device, image, imageMemory, 0); // Associate memory with the image (fourth parameter is the offset within the region of memory)
+	vkBindImageMemory(RDI->device, image, imageMemory, 0);
 }
 
 void ForwardRenderer::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
@@ -1216,49 +1182,49 @@ void ForwardRenderer::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t
 
 
 
-void ForwardRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-{
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
-
-	VkBufferCopy copyRegion = {}; // Defines the regions of buffers to copy
-	copyRegion.srcOffset = 0; // Optional
-	copyRegion.dstOffset = 0; // Optional
-	copyRegion.size = size;
-	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion); // Transfer the contents of the buffers
-
-	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
-}
-
-void ForwardRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
-{
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = size; // Size of the buffer
-	bufferInfo.usage = usage; // Indicates purpose of the data (possible to specify multiple using bitwise or)
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Sharing between different queue families (in this case only graphic queue so no sharing)
-
-	if (vkCreateBuffer(RDI->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Creating buffer failed"); // Create a buffer and store a handle in vertexBuffer variable
-	}
-
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(RDI->device, buffer, &memRequirements);
-
-	VkMemoryAllocateInfo allocInfo = {}; // Memory allocation parameters
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	//allocInfo.memoryTypeIndex = findMemoryType(RDI->physicalDevice, memRequirements.memoryTypeBits, properties); // Find memory with flags (eg available to write for CPU)
-	allocInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
-
-
-	if (vkAllocateMemory(RDI->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) // Allocate memory for buffer and store a handle in vertexBufferMemory variable
-	{
-		ASSERTE(false, "Allocating buffer memory failed");
-	}
-
-	vkBindBufferMemory(RDI->device, buffer, bufferMemory, 0); // Associate memory with the buffer (fourth parameter is the offset within the region of memory)
-}
+//void ForwardRenderer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+//{
+//	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
+//
+//	VkBufferCopy copyRegion = {}; // Defines the regions of buffers to copy
+//	copyRegion.srcOffset = 0; // Optional
+//	copyRegion.dstOffset = 0; // Optional
+//	copyRegion.size = size;
+//	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion); // Transfer the contents of the buffers
+//
+//	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
+//}
+//
+//void ForwardRenderer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+//{
+//	VkBufferCreateInfo bufferInfo = {};
+//	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+//	bufferInfo.size = size; // Size of the buffer
+//	bufferInfo.usage = usage; // Indicates purpose of the data (possible to specify multiple using bitwise or)
+//	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // Sharing between different queue families (in this case only graphic queue so no sharing)
+//
+//	if (vkCreateBuffer(RDI->device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+//	{
+//		ASSERTE(false, "Creating buffer failed"); // Create a buffer and store a handle in vertexBuffer variable
+//	}
+//
+//	VkMemoryRequirements memRequirements;
+//	vkGetBufferMemoryRequirements(RDI->device, buffer, &memRequirements);
+//
+//	VkMemoryAllocateInfo allocInfo = {}; // Memory allocation parameters
+//	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+//	allocInfo.allocationSize = memRequirements.size;
+//	//allocInfo.memoryTypeIndex = findMemoryType(RDI->physicalDevice, memRequirements.memoryTypeBits, properties); // Find memory with flags (eg available to write for CPU)
+//	allocInfo.memoryTypeIndex = findMemoryType(RDI->memoryProperties, memRequirements.memoryTypeBits, properties);
+//
+//
+//	if (vkAllocateMemory(RDI->device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) // Allocate memory for buffer and store a handle in vertexBufferMemory variable
+//	{
+//		ASSERTE(false, "Allocating buffer memory failed");
+//	}
+//
+//	vkBindBufferMemory(RDI->device, buffer, bufferMemory, 0); // Associate memory with the buffer (fourth parameter is the offset within the region of memory)
+//}
 
 
 
@@ -1275,10 +1241,15 @@ void ForwardRenderer::updateUniformBuffer(uint32_t currentImage)
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
 	ubo.proj[1][1] *= -1; // GLM was designed for OpenGL, where the Y coordinate of the clip coordinates is inverted. The compensate flip the sign on the scaling factor of the Y axis in the projection matrix (Without this the image will be rendered upside down)
 
+	//void* data;
+	//vkMapMemory(RDI->device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
+	//memcpy(data, &ubo, sizeof(ubo)); // Copy the data to the buffer
+	//vkUnmapMemory(RDI->device, uniformBuffersMemory[currentImage]); // Unmap the buffer memory
+
 	void* data;
-	vkMapMemory(RDI->device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
+	vkMapMemory(RDI->device, uniformBuffers[currentImage].memory, 0, sizeof(ubo), 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
 	memcpy(data, &ubo, sizeof(ubo)); // Copy the data to the buffer
-	vkUnmapMemory(RDI->device, uniformBuffersMemory[currentImage]); // Unmap the buffer memory
+	vkUnmapMemory(RDI->device, uniformBuffers[currentImage].memory); // Unmap the buffer memory
 }
 
 //----------------------- API ------------------

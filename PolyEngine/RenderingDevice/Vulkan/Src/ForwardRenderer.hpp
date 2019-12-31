@@ -4,7 +4,7 @@
 #include "IRendererInterface.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
+#include <Resources.hpp>
 
 #include <vulkan/vulkan.h>
 
@@ -58,12 +58,15 @@ namespace Poly {
 		VkImageView textureImageView;
 		VkSampler textureSampler;
 
-		VkBuffer vertexBuffer;
-		VkDeviceMemory vertexBufferMemory;
-		VkBuffer indexBuffer;
-		VkDeviceMemory indexBufferMemory;
-		std::vector<VkBuffer> uniformBuffers;
-		std::vector<VkDeviceMemory> uniformBuffersMemory;
+		//VkBuffer vertexBuffer;
+		//VkDeviceMemory vertexBufferMemory;
+		Buffer vertexBuffer;
+		Buffer indexBuffer;
+
+		//VkBuffer indexBuffer;
+		//VkDeviceMemory indexBufferMemory;
+		std::vector<Buffer> uniformBuffers;
+		//std::vector<VkDeviceMemory> uniformBuffersMemory;
 
 		VkDescriptorPool descriptorPool;
 		std::vector<VkDescriptorSet> descriptorSets;
@@ -120,8 +123,6 @@ namespace Poly {
 		void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
 		void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 		
-		//void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-		//void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 		void updateUniformBuffer(uint32_t currentImage);
 	
 	};

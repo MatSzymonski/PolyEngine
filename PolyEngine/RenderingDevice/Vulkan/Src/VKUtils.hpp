@@ -3,7 +3,7 @@
 #include <pe/Defines.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
+#include "PolyRenderingDeviceVKPCH.hpp"
 
 #define VK_CHECK(call, message) \
 	do { \
@@ -38,6 +38,8 @@ namespace Poly {
 		{
 			if ((typeFilter & (1 << i)) && (memoryProperties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags)
 			{
+
+			
 				return i;
 			}
 		}
