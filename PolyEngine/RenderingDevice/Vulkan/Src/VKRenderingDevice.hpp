@@ -39,20 +39,8 @@ namespace Poly
 			FORWARD
 		};
 
-		struct QueueFamilyIndices // Queue families required to load
-		{
-			std::optional<uint32_t> graphicsFamily;
-			std::optional<uint32_t> presentFamily;
 
-			bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value();	}
-		};
 
-		struct SwapChainSupportDetails
-		{
-			VkSurfaceCapabilitiesKHR capabilities;
-			std::vector<VkSurfaceFormatKHR> formats;
-			std::vector<VkPresentModeKHR> presentModes;
-		};
 
 	public:
 
@@ -114,13 +102,16 @@ namespace Poly
 		void createSurface();
 		void pickPhysicalDevice();
 		bool isDeviceSuitable(VkPhysicalDevice device);
-		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
 		bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-		SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+
 		VkSampleCountFlagBits getMaxUsableSampleCount();
 		void createLogicalDevice();
 
 		void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
+
+
+
 
 		// Engine Renderer API 
 		IRendererInterface* CreateRenderer();

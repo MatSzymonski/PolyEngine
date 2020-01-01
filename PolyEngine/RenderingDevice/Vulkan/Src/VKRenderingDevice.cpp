@@ -6,10 +6,12 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
-#include "IRendererInterface.hpp"
-#include "ForwardRenderer.hpp"
+#include <IRendererInterface.hpp>
+#include <ForwardRenderer.hpp>
 
-#include "VKMeshDeviceProxy.hpp"
+#include <VKMeshDeviceProxy.hpp>
+#include <CommandBuffer.hpp>
+#include <Swapchain.hpp>
 
 
 const bool PRINT_AVAILABLE_VULKAN_LAYERS = true;
@@ -326,52 +328,23 @@ void VKRenderingDevice::pickPhysicalDevice()
 
 bool VKRenderingDevice::isDeviceSuitable(VkPhysicalDevice device)
 {
-	QueueFamilyIndices indices = findQueueFamilies(device); // Check if device supports requested queue families
+	QueueFamilyIndices indices = findQueueFamilies(device, surface); // Check if device supports requested queue families
 
 	bool extensionsSupported = checkDeviceExtensionSupport(device); // Check if device supports requested extensions
 
-	bool swapChainAdequate = false;
+	bool swapchainAdequate = false;
 	if (extensionsSupported) // Check if swapchain fulfils additional requirements. It is sufficient if there is at least one supported image format and one supported presentation mode given the window surface used
 	{
-		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-		swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
+		SwapchainSurfaceSupportDetails swapchainSurfaceSupportDetails = querySwapchainSupport(device, surface);
+		swapchainAdequate = !swapchainSurfaceSupportDetails.formats.empty() && !swapchainSurfaceSupportDetails.presentModes.empty();
 	}
 
 	VkPhysicalDeviceFeatures supportedFeatures;
 	vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-	return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+	return indices.isComplete() && extensionsSupported && swapchainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
-VKRenderingDevice::QueueFamilyIndices VKRenderingDevice::findQueueFamilies(VkPhysicalDevice device)
-{
-	QueueFamilyIndices indices;
-
-	uint32_t queueFamilyCount = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-	std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-	int i = 0;
-	for (const auto& queueFamily : queueFamilies)
-	{
-		if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			indices.graphicsFamily = i;
-
-		VkBool32 presentSupport = false; 
-		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
-
-		if (presentSupport)
-			indices.presentFamily = i;
-
-		if (indices.isComplete())
-			break;
-
-		i++;
-	}
-	return indices;
-}
 
 bool VKRenderingDevice::checkDeviceExtensionSupport(VkPhysicalDevice device)
 {
@@ -391,32 +364,7 @@ bool VKRenderingDevice::checkDeviceExtensionSupport(VkPhysicalDevice device)
 	return requiredExtensions.empty();
 }
 
-VKRenderingDevice::SwapChainSupportDetails VKRenderingDevice::querySwapChainSupport(VkPhysicalDevice device)
-{
-	SwapChainSupportDetails details;
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
-
-	uint32_t formatCount;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
-
-	if (formatCount != 0)
-	{
-		details.formats.resize(formatCount);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
-	}
-
-	uint32_t presentModeCount;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
-
-	if (presentModeCount != 0)
-	{
-		details.presentModes.resize(presentModeCount);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
-	}
-
-	return details;
-}
 
 VkSampleCountFlagBits VKRenderingDevice::getMaxUsableSampleCount()
 {
@@ -436,7 +384,7 @@ VkSampleCountFlagBits VKRenderingDevice::getMaxUsableSampleCount()
 
 void VKRenderingDevice::createLogicalDevice()
 {
-	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
@@ -485,6 +433,8 @@ void VKRenderingDevice::createLogicalDevice()
 
 	core::utils::gConsole.LogInfo("Vulkan logical device successfully");
 }
+
+
 
 
 // ---------------------------- Engine Renderer API Implementation  ----------------------------

@@ -129,7 +129,7 @@ void destroyImage(const Image& image, VkDevice device)
 {
 	vkDestroyImageView(device, image.imageView, 0);
 	vkDestroyImage(device, image.image, 0);
-	vkFreeMemory(device, image.memory, 0); //TODO(HIST0R) swapchain has no memory allocation for its images. Should it have? 
+	vkFreeMemory(device, image.memory, 0);
 }
 
 VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, VkDevice device)

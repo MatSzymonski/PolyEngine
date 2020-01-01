@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <Resources.hpp>
-
+#include <Swapchain.hpp>
 #include <vulkan/vulkan.h>
 
 #include <Configs/AssetsPathConfig.hpp>
@@ -31,10 +31,8 @@ namespace Poly {
 
 
 	private:
-		VkSwapchainKHR swapChain;
-		std::vector<Image> swapChainImages;
-		VkFormat swapChainImageFormat;
-		VkExtent2D swapChainExtent;
+		Swapchain swapchain;	
+
 		std::vector<VkFramebuffer> swapChainFramebuffers;
 
 		VkRenderPass renderPass;
@@ -81,12 +79,11 @@ namespace Poly {
 
 		void drawFrame();
 
-		void createSwapChain();
-		void createImageViews();
+	
+		//void createImageViews();
 		void createRenderPass();
 		void createDescriptorSetLayout();
 		void createGraphicsPipeline();
-		void createCommandPool();
 		void createColorResources();
 		void createDepthResources();
 		void createFramebuffers();
@@ -107,9 +104,7 @@ namespace Poly {
 
 		VkShaderModule createShaderModule(const std::vector<char>& code);
 		std::vector<char> readFile(const std::string& filename);
-		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
 		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 		VkFormat findDepthFormat();
 		bool hasStencilComponent(VkFormat format);

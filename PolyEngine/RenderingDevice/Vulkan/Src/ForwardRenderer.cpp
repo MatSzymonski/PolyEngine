@@ -25,12 +25,12 @@ ForwardRenderer::ForwardRenderer(VKRenderingDevice * renderingDeviceInterface)
 
 void ForwardRenderer::Init()
 {
-	createSwapChain();
-	createImageViews();
+	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, 0);
+	//createImageViews();
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	createCommandPool();
+	createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, commandPool);
 	createColorResources();
 	createDepthResources();
 	createFramebuffers();
@@ -97,17 +97,9 @@ void ForwardRenderer::cleanUpSwapChain()
 	vkDestroyPipelineLayout(RDI->device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(RDI->device, renderPass, nullptr);
 
-	vkDestroySwapchainKHR(RDI->device, swapChain, nullptr);
 
-	for (size_t i = 0; i < swapChainImages.size(); i++)
-	{
-		destroyImage(swapChainImages[i], RDI->device);
-		//destroyBuffer(uniformBuffers[i], RDI->device);
 
-	//	vkDestroyBuffer(RDI->device, uniformBuffers[i], nullptr);
-	//	vkFreeMemory(RDI->device, uniformBuffersMemory[i], nullptr);
-	}
-
+	destroySwapchain(swapchain, RDI->device);
 	vkDestroyDescriptorPool(RDI->device, descriptorPool, nullptr);
 }
 
@@ -119,8 +111,9 @@ void ForwardRenderer::recreateSwapChain()
 
 	cleanUpSwapChain(); // Wait for all the asynchronous rendering operations to finish and then close the program (to avoid errors when closing program in the middle of processing)
 
-	createSwapChain();
-	createImageViews();
+
+	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, 0);
+	//createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
 	createColorResources();
@@ -130,105 +123,24 @@ void ForwardRenderer::recreateSwapChain()
 	createDescriptorPool();
 	createDescriptorSets();
 	createCommandBuffers();
+
+
 }
 
-void ForwardRenderer::createSwapChain()
-{
-	VKRenderingDevice::SwapChainSupportDetails swapChainSupport = RDI->querySwapChainSupport(RDI->physicalDevice);
-
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
-
-	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;// Set the number of images in swap chain
-	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
-	{
-		imageCount = swapChainSupport.capabilities.maxImageCount;
-	}
-
-	VkSwapchainCreateInfoKHR createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	createInfo.surface = RDI->surface;
-
-	createInfo.minImageCount = imageCount;
-	createInfo.imageFormat = surfaceFormat.format;
-	createInfo.imageColorSpace = surfaceFormat.colorSpace;
-	createInfo.imageExtent = extent;
-	createInfo.imageArrayLayers = 1; // Number of layers per image (always 1 for 2D usage)
-	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // Render directly to swapchain images (If rendering to some other buffer, using postprocessing and then transfering to swapchain - use VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-
-	VKRenderingDevice::QueueFamilyIndices indices = RDI->findQueueFamilies(RDI->physicalDevice);
-	uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
-
-	// Graphics and presentation queue families are the same, which is the case on most hardware 
-	// Specify how to handle swap chain images that will be used across multiple queue families
-	if (indices.graphicsFamily != indices.presentFamily) // Draw first on the images in the swapchain from the graphics queue and then submit them on the presentation queue
-	{
-		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT; // Images can be used across multiple queue families without explicit ownership transfers
-		createInfo.queueFamilyIndexCount = 2; // Specify in advance between which queue families ownership will be shared
-		createInfo.pQueueFamilyIndices = queueFamilyIndices; // Specify in advance between which queue families ownership will be shared
-	}
-	else
-	{
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE; //  Image is owned by one queue family at a time and ownership must be explicitly transfered before using it in another queue family. This option offers the best performance.
-		createInfo.queueFamilyIndexCount = 0; // Specify in advance between which queue families ownership will be shared
-		createInfo.pQueueFamilyIndices = nullptr; // Specify in advance between which queue families ownership will be shared
-	}
-
-	createInfo.preTransform = swapChainSupport.capabilities.currentTransform; // Additional image transform in swapchain (like rotating by 90 deg)
-	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // If the alpha channel should be used for blending with other windows in the window system (Ignore in this case)
-	createInfo.presentMode = presentMode;
-	createInfo.clipped = VK_TRUE; // Don't care about the color of pixels that are obscured
-
-	createInfo.oldSwapchain = VK_NULL_HANDLE; // Reference to the old not anymore valid swapchain (New one needs to be created eg. when resizing window)
-
-	if (vkCreateSwapchainKHR(RDI->device, &createInfo, nullptr, &swapChain) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Creating swapchain failed");
-	}
-
-
-	vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, nullptr); // Query the final number of images in swapchain
-	std::vector<VkImage> images(imageCount);
-	vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, images.data());
-
-	swapChainImageFormat = surfaceFormat.format; // Store the format for the swapchain images in member variables for later use
-	swapChainExtent = extent; // Store the extent for the swapchain images in member variables for later use
-
-	swapChainImages.resize(imageCount);
-	for (size_t i = 0; i < swapChainImages.size(); i++)
-	{
-		swapChainImages[i].image = images[i];
-		swapChainImages[i].imageView = createImageView(swapChainImages[i].image, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, RDI->device);
-		//swapChainImageViews[i] =     createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-	}
-
-
-
-
-	//vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, nullptr); // Query the final number of images in swapchain
-	//swapChainImages.resize(imageCount);
-	//vkGetSwapchainImagesKHR(RDI->device, swapChain, &imageCount, swapChainImages.data()); // Get image handles
-
-	//swapChainImageFormat = surfaceFormat.format; // Store the format for the swapchain images in member variables for later use
-	//swapChainExtent = extent; // Store the extent for the swapchain images in member variables for later use
-	
-}
-
-void ForwardRenderer::createImageViews()
-{
-	swapChainImages.resize(swapChainImages.size()); // Resize the list to fit all of the image views
-
-	for (size_t i = 0; i < swapChainImages.size(); i++)
-	{
-		//swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-	}
-}
+//void ForwardRenderer::createImageViews()
+//{
+//	swapChainImages.resize(swapChainImages.size()); // Resize the list to fit all of the image views
+//
+//	for (size_t i = 0; i < swapChainImages.size(); i++)
+//	{
+//		//swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+//	}
+//}
 
 void ForwardRenderer::createRenderPass() // Specify the number of color and depth buffers, number of samples for each of them and how their contents should be handled throughout the rendering operations. Also specify subpasses.
 {
 	VkAttachmentDescription colorAttachment = {}; // Color buffer attachment (Not for presentation since multisampled images cannot be presented directly)
-	colorAttachment.format = swapChainImageFormat; // The format of the color attachment should match the format of the swapchain images
+	colorAttachment.format = swapchain.imageFormat; // The format of the color attachment should match the format of the swapchain images
 	colorAttachment.samples = RDI->msaaSamples;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // Determines what to do with the data in the attachment before rendering (Load/Preserve contents, clear, dont care)
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // Determines what to do with the data in the attachment after rendering (Store, dont care)
@@ -248,7 +160,7 @@ void ForwardRenderer::createRenderPass() // Specify the number of color and dept
 	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentDescription colorAttachmentResolve = {}; // Resolve buffer attachment (For presentation)
-	colorAttachmentResolve.format = swapChainImageFormat;
+	colorAttachmentResolve.format = swapchain.imageFormat;
 	colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -374,14 +286,14 @@ void ForwardRenderer::createGraphicsPipeline()
 	VkViewport viewport = {}; // Describes the region of the framebuffer that the output will be rendered to
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = (float)swapChainExtent.width;
-	viewport.height = (float)swapChainExtent.height;
+	viewport.width = (float)swapchain.extent.width;
+	viewport.height = (float)swapchain.extent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
 	VkRect2D scissor = {}; // Allows to discard some area of pixels in the viewport
 	scissor.offset = { 0, 0 };
-	scissor.extent = swapChainExtent;
+	scissor.extent = swapchain.extent;
 
 	VkPipelineViewportStateCreateInfo viewportState = {}; // Combines viewport and scissor rectangle
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -480,42 +392,29 @@ void ForwardRenderer::createGraphicsPipeline()
 
 
 
-void ForwardRenderer::createCommandPool()
-{
-	VKRenderingDevice::QueueFamilyIndices queueFamilyIndices = RDI->findQueueFamilies(RDI->physicalDevice);
 
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-	poolInfo.flags = 0; // Optional
-
-	if (vkCreateCommandPool(RDI->device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Creating command pool failed");
-	}
-}
 
 void ForwardRenderer::createColorResources()
 {
-	createImage(colorTarget, swapChainExtent.width, swapChainExtent.height, 1, RDI->msaaSamples, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+	createImage(colorTarget, swapchain.extent.width, swapchain.extent.height, 1, RDI->msaaSamples, swapchain.imageFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void ForwardRenderer::createDepthResources()
 {
 	VkFormat depthFormat = findDepthFormat();
-	createImage(depthTarget, swapChainExtent.width, swapChainExtent.height, 1, RDI->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+	createImage(depthTarget, swapchain.extent.width, swapchain.extent.height, 1, RDI->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
 void ForwardRenderer::createFramebuffers()
 {
-	swapChainFramebuffers.resize(swapChainImages.size());
+	swapChainFramebuffers.resize(swapchain.imageCount);
 
-	for (size_t i = 0; i < swapChainImages.size(); i++)
+	for (size_t i = 0; i < swapchain.imageCount; i++)
 	{
 		std::array<VkImageView, 3> attachments = {
 			colorTarget.imageView,
 			depthTarget.imageView,
-			swapChainImages[i].imageView
+			swapchain.imageViews[i]
 		};
 
 		VkFramebufferCreateInfo framebufferInfo = {};
@@ -523,8 +422,8 @@ void ForwardRenderer::createFramebuffers()
 		framebufferInfo.renderPass = renderPass; // Only compatible render passes can be used
 		framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
 		framebufferInfo.pAttachments = attachments.data(); // Image view and depth image view that are used by this framebuffer will be sent to the render pass so it can use them as the attachment
-		framebufferInfo.width = swapChainExtent.width;
-		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.width = swapchain.extent.width;
+		framebufferInfo.height = swapchain.extent.height;
 		framebufferInfo.layers = 1;
 
 		if (vkCreateFramebuffer(RDI->device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
@@ -618,9 +517,9 @@ void ForwardRenderer::createIndexBuffer()
 void ForwardRenderer::createUniformBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-	uniformBuffers.resize(swapChainImages.size());
+	uniformBuffers.resize(swapchain.imageCount);
 
-	for (size_t i = 0; i < swapChainImages.size(); i++) // For each swapchain image create uniform buffer (no staging buffer needed since uniform buffers will be updated each frame)
+	for (size_t i = 0; i < swapchain.imageCount; i++) // For each swapchain image create uniform buffer (no staging buffer needed since uniform buffers will be updated each frame)
 	{
 		createBuffer(uniformBuffers[i], RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 	}
@@ -630,16 +529,16 @@ void ForwardRenderer::createDescriptorPool()
 {
 	std::array<VkDescriptorPoolSize, 2> poolSizes = {}; // Describe which descriptor types our descriptor sets are going to contain and how many of them
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; // For UBO
-	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+	poolSizes[0].descriptorCount = static_cast<uint32_t>(swapchain.imageCount);
 
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // For combined image sampler
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(swapchain.imageCount);
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); // Maximum number of individual descriptors that are available
 	poolInfo.pPoolSizes = poolSizes.data();
-	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()); // Maximum number of descriptor sets that may be allocated
+	poolInfo.maxSets = static_cast<uint32_t>(swapchain.imageCount); // Maximum number of descriptor sets that may be allocated
 	poolInfo.flags = 0;
 
 	if (vkCreateDescriptorPool(RDI->device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
@@ -650,20 +549,20 @@ void ForwardRenderer::createDescriptorPool()
 
 void ForwardRenderer::createDescriptorSets()
 {
-	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+	std::vector<VkDescriptorSetLayout> layouts(swapchain.imageCount, descriptorSetLayout);
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = descriptorPool;
-	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapchain.imageCount);
 	allocInfo.pSetLayouts = layouts.data();
 
-	descriptorSets.resize(swapChainImages.size());
+	descriptorSets.resize(swapchain.imageCount);
 	if (vkAllocateDescriptorSets(RDI->device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) // Allocate descriptor sets, each with one uniform buffer descriptor
 	{
 		ASSERTE(false, "Allocating descriptor sets failed");
 	}
 
-	for (size_t i = 0; i < swapChainImages.size(); i++) // Configure each UBO descriptor and each image sampler descriptor
+	for (size_t i = 0; i < swapchain.imageCount; i++) // Configure each UBO descriptor and each image sampler descriptor
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
 		bufferInfo.buffer = uniformBuffers[i].buffer;
@@ -733,7 +632,7 @@ void ForwardRenderer::createCommandBuffers()
 		renderPassInfo.renderPass = renderPass;
 		renderPassInfo.framebuffer = swapChainFramebuffers[i];
 		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = swapChainExtent;
+		renderPassInfo.renderArea.extent = swapchain.extent;
 
 		std::array<VkClearValue, 2> clearValues = {};
 		clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -769,7 +668,7 @@ void ForwardRenderer::createSyncObjects()
 	imageAvailableSemaphores.resize(RDI->MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
 	renderFinishedSemaphores.resize(RDI->MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
 	inFlightFences.resize(RDI->MAX_FRAMES_IN_FLIGHT); // Set of fences for each frame in pool
-	imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE); // Track for each swap chain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
+	imagesInFlight.resize(swapchain.imageCount, VK_NULL_HANDLE); // Track for each swap chain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
 
 
 	VkSemaphoreCreateInfo semaphoreInfo = {};
@@ -861,55 +760,6 @@ std::vector<char> ForwardRenderer::readFile(const std::string& filename)
 
 
 
-VkSurfaceFormatKHR ForwardRenderer::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
-{
-	for (const auto& availableFormat : availableFormats)
-	{
-		if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) // Choose the best available mode
-		{
-			return availableFormat;
-		}
-	}
-
-	return availableFormats[0];
-}
-
-VkPresentModeKHR ForwardRenderer::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
-{
-	for (const auto& availablePresentMode : availablePresentModes)
-	{
-		if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) // Choose the best available mode (Mailbox is triple buffering)
-		{
-			return availablePresentMode;
-		}
-	}
-
-	return VK_PRESENT_MODE_FIFO_KHR; //Guaranteed to be available
-}
-
-VkExtent2D ForwardRenderer::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
-{
-	if (capabilities.currentExtent.width != UINT32_MAX)
-	{
-		return capabilities.currentExtent;
-	}
-	else // Picks the resolution that best matches the window within the minImageExtent and maxImageExtent bounds
-	{
-		int width, height;
-		SDL_GetWindowSize(RDI->window, &width, &height);
-		//glfwGetFramebufferSize(RDI->window, &width, &height); // Query the current size of the framebuffer to make sure that the swapchain images have the (new) right size
-
-		VkExtent2D actualExtent = {
-			static_cast<uint32_t>(width),
-			static_cast<uint32_t>(height)
-		};
-
-		actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
-		actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
-
-		return actualExtent;
-	}
-}
 
 
 
@@ -1056,7 +906,7 @@ void ForwardRenderer::updateUniformBuffer(uint32_t currentImage)
 	UniformBufferObject ubo = {};
 	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
+	ubo.proj = glm::perspective(glm::radians(45.0f), swapchain.extent.width / (float)swapchain.extent.height, 0.1f, 10.0f);
 	ubo.proj[1][1] *= -1; // GLM was designed for OpenGL, where the Y coordinate of the clip coordinates is inverted. The compensate flip the sign on the scaling factor of the Y axis in the projection matrix (Without this the image will be rendered upside down)
 
 	//void* data;
@@ -1084,7 +934,7 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	vkWaitForFences(RDI->device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); // Wait for frame to be finished and then start rendering new data to it
 
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(RDI->device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); // Start waiting for image from swapchain. When image becomes available sync object is signaled. Last parameter is index of available VkImage in swapchainImages array (using UINT64_MAX for image availability delay disables it)
+	VkResult result = vkAcquireNextImageKHR(RDI->device, swapchain.swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); // Start waiting for image from swapchain. When image becomes available sync object is signaled. Last parameter is index of available VkImage in swapchainImages array (using UINT64_MAX for image availability delay disables it)
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) // Check if swapchain is still compatible with the surface (and cannot be used for rendering any longer)
 	{
@@ -1096,6 +946,9 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 		ASSERTE(false, "Acquiring swapchain image failed");
 	}
 
+
+
+
 	updateUniformBuffer(imageIndex);
 
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) // Check if a previous frame is using this image (i.e. there is its fence to wait on)
@@ -1105,6 +958,8 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame]; // Mark the image as now being in use by this frame
 
+
+
 	VkSubmitInfo submitInfo = {}; // Queue submission and synchronization
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] }; // Specifies for which semaphores to wait before execution begins
@@ -1112,10 +967,8 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = waitSemaphores;
 	submitInfo.pWaitDstStageMask = waitStages;
-
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffers[imageIndex]; // Specify to which command buffer submit for (we should submit the command buffer that binds the swapchain image we just acquired as color attachment)
-
 	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] }; // To which semaphores send signal when command buffer(s) have finished execution
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
@@ -1130,15 +983,14 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 		ASSERTE(queueSubmitResult == VK_ERROR_DEVICE_LOST, "Submitting command draw buffer to graphics queue failed - Device lost");
 	}
 
+
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pWaitSemaphores = signalSemaphores; // Specify which semaphores to wait on before presentation can happen
-
-	VkSwapchainKHR swapChains[] = { swapChain };
+	VkSwapchainKHR swapchains[] = { swapchain.swapchain };
 	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = swapChains;
+	presentInfo.pSwapchains = swapchains;
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr; // Optional Allows to specify an array of VkResult to check for every individual swapchain if presentation was successful
 
