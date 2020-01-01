@@ -50,7 +50,6 @@ SwapchainSurfaceSupportDetails querySwapchainSupport(VkPhysicalDevice physicalDe
 	return details;
 }
 
-//TODO Check how image view were created and why they are not now!
 void createSwapchain(Swapchain& swapchain, SDL_Window* window, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkSwapchainKHR oldSwapchain)
 {
 	SwapchainSurfaceSupportDetails swapchainSurfaceSupportDetails = querySwapchainSupport(physicalDevice, surface);
@@ -114,28 +113,6 @@ void createSwapchain(Swapchain& swapchain, SDL_Window* window, VkPhysicalDevice 
 }
 
 
-
-
-
-//VkFormat getSwapchainFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface)
-//{
-//	uint32_t formatCount = 0;
-//	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, 0));
-//	assert(formatCount > 0);
-//
-//	std::vector<VkSurfaceFormatKHR> formats(formatCount);
-//	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, formats.data()));
-//
-//	if (formatCount == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
-//		return VK_FORMAT_R8G8B8A8_UNORM;
-//
-//	for (uint32_t i = 0; i < formatCount; ++i)
-//		if (formats[i].format == VK_FORMAT_R8G8B8A8_UNORM || formats[i].format == VK_FORMAT_B8G8R8A8_UNORM)
-//			return formats[i].format;
-//
-//	return formats[0].format;
-//}
-
 void destroySwapchain(const Swapchain& swapchain, VkDevice device)
 {
 	for (size_t i = 0; i < swapchain.imageCount; i++)
@@ -145,35 +122,6 @@ void destroySwapchain(const Swapchain& swapchain, VkDevice device)
 
 	vkDestroySwapchainKHR(device, swapchain.swapchain, 0);
 }
-//
-//SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, VkFormat format)
-//{
-//	VkSurfaceCapabilitiesKHR surfaceCaps;
-//	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCaps));
-//
-//	uint32_t newWidth = surfaceCaps.currentExtent.width;
-//	uint32_t newHeight = surfaceCaps.currentExtent.height;
-//
-//	if (newWidth == 0 || newHeight == 0)
-//		return Swapchain_NotReady;
-//
-//	if (result.width == newWidth && result.height == newHeight)
-//		return Swapchain_Ready;
-//
-//	Swapchain old = result;
-//
-//	createSwapchain(result, physicalDevice, device, surface, familyIndex, format, old.swapchain);
-//
-//	VK_CHECK(vkDeviceWaitIdle(device));
-//
-//	destroySwapchain(device, old);
-//
-//	return Swapchain_Resized;
-//}
-
-
-
-
 
 
 VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)

@@ -26,7 +26,6 @@ ForwardRenderer::ForwardRenderer(VKRenderingDevice * renderingDeviceInterface)
 void ForwardRenderer::Init()
 {
 	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, 0);
-	//createImageViews();
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
@@ -35,8 +34,6 @@ void ForwardRenderer::Init()
 	createDepthResources();
 	createFramebuffers();
 	createTextureImage();
-	createTextureImageView();
-	createTextureSampler();
 	createVertexBuffer();
 	createIndexBuffer();
 	createUniformBuffers();
@@ -53,23 +50,16 @@ void ForwardRenderer::Deinit()
 
 void ForwardRenderer::cleanUp()
 {
-	cleanUpSwapChain();
+	cleanUpSwapchain(swapchain);
 
 	vkDestroySampler(RDI->device, textureSampler, nullptr);
 
 	destroyImage(textureImage, RDI->device);
 
-
 	vkDestroyDescriptorSetLayout(RDI->device, descriptorSetLayout, nullptr);
 
 	destroyBuffer(indexBuffer, RDI->device);
-	//vkDestroyBuffer(RDI->device, indexBuffer, nullptr);
-	//vkFreeMemory(RDI->device, indexBufferMemory, nullptr);
-
 	destroyBuffer(vertexBuffer, RDI->device);
-
-	//vkDestroyBuffer(RDI->device, vertexBuffer, nullptr);
-	//vkFreeMemory(RDI->device, vertexBufferMemory, nullptr);
 
 	for (size_t i = 0; i < RDI->MAX_FRAMES_IN_FLIGHT; i++)
 	{
@@ -81,7 +71,7 @@ void ForwardRenderer::cleanUp()
 	vkDestroyCommandPool(RDI->device, commandPool, nullptr);
 }
 
-void ForwardRenderer::cleanUpSwapChain()
+void ForwardRenderer::cleanUpSwapchain(Swapchain& swapchain)
 {
 	destroyImage(colorTarget, RDI->device);
 	destroyImage(depthTarget, RDI->device);
@@ -97,23 +87,25 @@ void ForwardRenderer::cleanUpSwapChain()
 	vkDestroyPipelineLayout(RDI->device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(RDI->device, renderPass, nullptr);
 
-
-
 	destroySwapchain(swapchain, RDI->device);
+
+	for (size_t i = 0; i < swapchain.imageCount; i++)
+	{
+		destroyBuffer(uniformBuffers[i], RDI->device);
+	}
+
 	vkDestroyDescriptorPool(RDI->device, descriptorPool, nullptr);
 }
 
-void ForwardRenderer::recreateSwapChain()
+void ForwardRenderer::recreateSwapchain()
 {
 	core::utils::gConsole.LogInfo("Recreating swapchain");
 
 	vkDeviceWaitIdle(RDI->device);
 
-	cleanUpSwapChain(); // Wait for all the asynchronous rendering operations to finish and then close the program (to avoid errors when closing program in the middle of processing)
-
-
-	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, 0);
-	//createImageViews();
+	Swapchain old = swapchain;
+	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, old.swapchain);
+	cleanUpSwapchain(old); // Wait for all the asynchronous rendering operations to finish and then close the program (to avoid errors when closing program in the middle of processing)
 	createRenderPass();
 	createGraphicsPipeline();
 	createColorResources();
@@ -123,19 +115,7 @@ void ForwardRenderer::recreateSwapChain()
 	createDescriptorPool();
 	createDescriptorSets();
 	createCommandBuffers();
-
-
 }
-
-//void ForwardRenderer::createImageViews()
-//{
-//	swapChainImages.resize(swapChainImages.size()); // Resize the list to fit all of the image views
-//
-//	for (size_t i = 0; i < swapChainImages.size(); i++)
-//	{
-//		//swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-//	}
-//}
 
 void ForwardRenderer::createRenderPass() // Specify the number of color and depth buffers, number of samples for each of them and how their contents should be handled throughout the rendering operations. Also specify subpasses.
 {
@@ -150,7 +130,7 @@ void ForwardRenderer::createRenderPass() // Specify the number of color and dept
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // Transitions image to a required format (color attachment, present, transfer destination) 
 
 	VkAttachmentDescription depthAttachment = {};
-	depthAttachment.format = findDepthFormat();
+	depthAttachment.format = findDepthFormat(RDI->physicalDevice);
 	depthAttachment.samples = RDI->msaaSamples;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; // (it will not be used after drawing has finished)
@@ -401,7 +381,7 @@ void ForwardRenderer::createColorResources()
 
 void ForwardRenderer::createDepthResources()
 {
-	VkFormat depthFormat = findDepthFormat();
+	VkFormat depthFormat = findDepthFormat(RDI->physicalDevice);
 	createImage(depthTarget, swapchain.extent.width, swapchain.extent.height, 1, RDI->msaaSamples, depthFormat, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
@@ -438,6 +418,8 @@ void ForwardRenderer::createTextureImage()
 	int texWidth, texHeight, texChannels;
 	//stbi_uc* pixels = stbi_load("C:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/CommonBuild/RenderingDevice/Vulkan/PolyRenderingDeviceVK/res/Textures/PolyEngine_logo.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha); // Load image from file
 	stbi_uc* pixels = stbi_load("D:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/RenderingDevice/Vulkan/Src/res/Textures/PolyEngine_logo.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha); // Load image from file
+	
+	
 	VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 bytes per pixel
 	mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1; // Calculates the number of levels in the mipmap chain 
 
@@ -457,39 +439,12 @@ void ForwardRenderer::createTextureImage()
 	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 
 	destroyBuffer(stagingBuffer, RDI->device);
-	generateMipmaps(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels); // Generate mipmaps for this texture image
+	generateMipmaps(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels, RDI->device, RDI->physicalDevice, RDI->graphicsQueue, commandPool); // Generate mipmaps for this texture image
+
+	textureSampler = createSampler(RDI->device, VK_SAMPLER_REDUCTION_MODE_MIN_EXT, mipLevels);
 }
 
-void ForwardRenderer::createTextureImageView()
-{
-	//textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
-}
 
-void ForwardRenderer::createTextureSampler()
-{
-	VkSamplerCreateInfo samplerInfo = {};
-	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerInfo.magFilter = VK_FILTER_LINEAR; // Specify how to interpolate texels that are magnified or minified (to deal with the oversampling and undersampling problems)
-	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT; // Image edge transformations (repeat, clamp to edge, clamp to border)
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerInfo.anisotropyEnable = VK_TRUE; // Specify if anisotropic filtering should be used
-	samplerInfo.maxAnisotropy = 16;
-	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; // Specify which color is returned when sampling beyond the image with clamp to border addressing mode
-	samplerInfo.unnormalizedCoordinates = VK_FALSE; // Specify which coordinate system will be used to address texels in an image (VK_TRUE - [0, texWidth) and [0, texHeight), VK_FALSE - [0, 1) and [0, 1))
-	samplerInfo.compareEnable = VK_FALSE; // If enabled texels will first be compared to a value and the result is used in filtering operations (Used for percentage-closer filtering on shadow maps)
-	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR; // Mipmapping
-	samplerInfo.mipLodBias = 0.0f;
-	samplerInfo.minLod = 0.0f;
-	samplerInfo.maxLod = static_cast<float>(mipLevels); // Maximal mipmap level (higher level = lower quality)
-
-	if (vkCreateSampler(RDI->device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Creating texture sampler failed");
-	}
-}
 
 void ForwardRenderer::createVertexBuffer()
 {
@@ -767,130 +722,7 @@ std::vector<char> ForwardRenderer::readFile(const std::string& filename)
 
 
 
-VkFormat ForwardRenderer::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
-{
-	for (VkFormat format : candidates)
-	{
-		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(RDI->physicalDevice, format, &props);
 
-		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
-		{
-			return format;
-		}
-		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
-		{
-			return format;
-		}
-	}
-
-	ASSERTE(false, "Finding supported depth image format failed");
-	return candidates[0]; //TODO(HIST0R) what to return? Unreachable code btw
-}
-
-VkFormat ForwardRenderer::findDepthFormat()
-{
-	return findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-}
-
-bool ForwardRenderer::hasStencilComponent(VkFormat format)
-{
-	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-}
-
-void ForwardRenderer::generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels)
-{
-	// Each level will be transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL after the blit command reading from it is finished
-
-	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(RDI->physicalDevice, imageFormat, &formatProperties);
-
-	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) // Check if image format supports linear blitting (since support is not guaranteed on all platforms)
-	{
-		ASSERTE(false, "Generating mipmaps failed - Texture image format does not support linear blitting");
-	}
-
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
-
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.image = image;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.subresourceRange.levelCount = 1;
-
-	int32_t mipWidth = texWidth;
-	int32_t mipHeight = texHeight;
-
-	for (uint32_t i = 1; i < mipLevels; i++) // Record VkCmdBlitImage commands generating mmipmaps (Each time generate mipmap one level higher)
-	{
-		// First, we transition level i - 1 to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL. 
-		// This transition will wait for level i - 1 to be filled, either from the previous blit command, or from vkCmdCopyBufferToImage. The current blit command will wait on this transition.
-
-		barrier.subresourceRange.baseMipLevel = i - 1;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-
-		vkCmdPipelineBarrier(commandBuffer,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
-			0, nullptr,
-			0, nullptr,
-			1, &barrier);
-
-		VkImageBlit blit = {};
-		blit.srcOffsets[0] = { 0, 0, 0 }; // Determine the 3D region that data will be blitted from
-		blit.srcOffsets[1] = { mipWidth, mipHeight, 1 }; // Determine the 3D region that data will be blitted from
-		blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		blit.srcSubresource.mipLevel = i - 1;
-		blit.srcSubresource.baseArrayLayer = 0;
-		blit.srcSubresource.layerCount = 1;
-		blit.dstOffsets[0] = { 0, 0, 0 }; // Determines the region that data will be blitted to
-		blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 }; // Determines the region that data will be blitted to (divided by two since each mip level is half the size of the previous level)
-		blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		blit.dstSubresource.mipLevel = i;
-		blit.dstSubresource.baseArrayLayer = 0;
-		blit.dstSubresource.layerCount = 1;
-
-		vkCmdBlitImage(commandBuffer, // Record blit command
-			image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // Transition from
-			image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // Transition to
-			1, &blit,
-			VK_FILTER_LINEAR); // Specify filtering 
-
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		vkCmdPipelineBarrier(commandBuffer, // This transition waits on the current blit command to finish (All sampling operations will wait on this transition to finish)
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-			0, nullptr,
-			0, nullptr,
-			1, &barrier);
-
-		if (mipWidth > 1) mipWidth /= 2; // Divide the current mip dimensions by two
-		if (mipHeight > 1) mipHeight /= 2; // Divide the current mip dimensions by two
-	}
-
-	barrier.subresourceRange.baseMipLevel = mipLevels - 1;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-	vkCmdPipelineBarrier(commandBuffer, // Wait for transition the last mip level from VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-		0, nullptr,
-		0, nullptr,
-		1, &barrier);
-
-	endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
-}
 
 
 
@@ -934,20 +766,20 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	vkWaitForFences(RDI->device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); // Wait for frame to be finished and then start rendering new data to it
 
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(RDI->device, swapchain.swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); // Start waiting for image from swapchain. When image becomes available sync object is signaled. Last parameter is index of available VkImage in swapchainImages array (using UINT64_MAX for image availability delay disables it)
+	VkResult result;
+	result = vkAcquireNextImageKHR(RDI->device, swapchain.swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex); // Start waiting for image from swapchain. When image becomes available sync object is signaled. Last parameter is index of available VkImage in swapchainImages array (using UINT64_MAX for image availability delay disables it)
+
+
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) // Check if swapchain is still compatible with the surface (and cannot be used for rendering any longer)
 	{
-		recreateSwapChain();
+		recreateSwapchain();
 		return;
 	}
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 	{
 		ASSERTE(false, "Acquiring swapchain image failed");
 	}
-
-
-
 
 	updateUniformBuffer(imageIndex);
 
@@ -994,7 +826,9 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr; // Optional Allows to specify an array of VkResult to check for every individual swapchain if presentation was successful
 
-	result = vkQueuePresentKHR(RDI->presentQueue, &presentInfo); // Submits the request to present an image to the swap chain
+
+
+	result = vkQueuePresentKHR(RDI->presentQueue, &presentInfo); // Submits the request to present an image to the swapchain
 
 	if (lastViewportRect != sceneView.Rect)
 	{
@@ -1005,7 +839,7 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || windowResized) // Check if swapchain is still compatible with the surface (and cannot be used for rendering any longer)
 	{
 		windowResized = false;
-		recreateSwapChain();
+		recreateSwapchain();
 	}
 	else if (result != VK_SUCCESS)
 	{
@@ -1014,10 +848,4 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 
 
 	currentFrame = (currentFrame + 1) % RDI->MAX_FRAMES_IN_FLIGHT; // Advance to the next frame
-}
-
-
-void ForwardRenderer::drawFrame()
-{
-
 }

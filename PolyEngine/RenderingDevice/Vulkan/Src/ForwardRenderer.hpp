@@ -31,7 +31,7 @@ namespace Poly {
 
 
 	private:
-		Swapchain swapchain;	
+		Swapchain swapchain;
 
 		std::vector<VkFramebuffer> swapChainFramebuffers;
 
@@ -48,19 +48,12 @@ namespace Poly {
 	
 		uint32_t mipLevels;
 		Image textureImage;
-		//VkDeviceMemory textureImageMemory;
-		//VkImageView textureImageView;
 		VkSampler textureSampler;
 
-		//VkBuffer vertexBuffer;
-		//VkDeviceMemory vertexBufferMemory;
 		Buffer vertexBuffer;
 		Buffer indexBuffer;
 
-		//VkBuffer indexBuffer;
-		//VkDeviceMemory indexBufferMemory;
 		std::vector<Buffer> uniformBuffers;
-		//std::vector<VkDeviceMemory> uniformBuffersMemory;
 
 		VkDescriptorPool descriptorPool;
 		std::vector<VkDescriptorSet> descriptorSets;
@@ -77,10 +70,6 @@ namespace Poly {
 		pe::core::math::AARect lastViewportRect;
 		
 
-		void drawFrame();
-
-	
-		//void createImageViews();
 		void createRenderPass();
 		void createDescriptorSetLayout();
 		void createGraphicsPipeline();
@@ -88,8 +77,6 @@ namespace Poly {
 		void createDepthResources();
 		void createFramebuffers();
 		void createTextureImage();
-		void createTextureImageView();
-		void createTextureSampler();
 		void createVertexBuffer();
 		void createIndexBuffer();
 		void createUniformBuffers();
@@ -99,16 +86,13 @@ namespace Poly {
 		void createSyncObjects();
 
 		void cleanUp();
-		void cleanUpSwapChain();
-		void recreateSwapChain();
+		void cleanUpSwapchain(Swapchain& swapchain);
+		void recreateSwapchain();
 
 		VkShaderModule createShaderModule(const std::vector<char>& code);
 		std::vector<char> readFile(const std::string& filename);
 
-		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-		VkFormat findDepthFormat();
-		bool hasStencilComponent(VkFormat format);
-		void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
+
 
 		void updateUniformBuffer(uint32_t currentImage);
 	

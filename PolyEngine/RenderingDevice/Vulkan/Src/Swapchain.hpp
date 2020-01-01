@@ -25,8 +25,6 @@
 
 	typedef struct GLFWwindow GLFWwindow;
 
-	VkSurfaceKHR createSurface(VkInstance instance, GLFWwindow* window);
-	VkFormat getSwapchainFormat(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
 	void createSwapchain(Swapchain& swapchain, SDL_Window* window, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkSwapchainKHR oldSwapchain = 0);
 	void destroySwapchain(const Swapchain& swapchain, VkDevice device);
 
@@ -34,12 +32,3 @@
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, SDL_Window* window);
-
-	enum SwapchainStatus
-	{
-		Swapchain_Ready,
-		Swapchain_Resized,
-		Swapchain_NotReady,
-	};
-
-	SwapchainStatus updateSwapchain(Swapchain& result, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t familyIndex, VkFormat format);

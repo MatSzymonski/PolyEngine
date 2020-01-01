@@ -129,7 +129,7 @@ void destroyImage(const Image& image, VkDevice device)
 {
 	vkDestroyImageView(device, image.imageView, 0);
 	vkDestroyImage(device, image.image, 0);
-	vkFreeMemory(device, image.memory, 0);
+	vkFreeMemory(device, image.memory, 0); 
 }
 
 VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, VkDevice device)
@@ -234,4 +234,164 @@ void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t 
 	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region); // Transfer the contents of the buffer to image (The fourth parameter indicates which layout the image is currently using)
 
 	endSingleTimeCommands(device, commandPool, queue, commandBuffer);
+}
+
+VkSampler createSampler(VkDevice device, VkSamplerReductionModeEXT reductionMode, uint32_t mipLevels)
+{
+	VkSamplerCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	createInfo.magFilter = VK_FILTER_LINEAR;
+	createInfo.minFilter = VK_FILTER_LINEAR;
+	createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	createInfo.anisotropyEnable = VK_TRUE;
+	createInfo.maxAnisotropy = 16;
+	createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	createInfo.unnormalizedCoordinates = VK_FALSE;
+	createInfo.compareEnable = VK_FALSE;
+	createInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	createInfo.mipLodBias = 0.0f;
+	createInfo.minLod = 0.0f;
+	createInfo.maxLod = static_cast<float>(mipLevels);
+
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = {};
+	createInfoReduction.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT;
+
+	if (reductionMode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT)
+	{
+		createInfoReduction.reductionMode = reductionMode;
+		createInfo.pNext = &createInfoReduction;
+	}
+
+	VkSampler sampler = 0;
+	VK_CHECK(vkCreateSampler(device, &createInfo, nullptr, &sampler), "Creating sampler failed");
+	return sampler;
+}
+
+
+VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features, VkPhysicalDevice physicalDevice)
+{
+	for (VkFormat format : candidates)
+	{
+		VkFormatProperties props;
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+
+		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+		{
+			return format;
+		}
+		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+		{
+			return format;
+		}
+	}
+
+	ASSERTE(false, "Finding supported depth image format failed");
+	return candidates[0]; //TODO(HIST0R) what to return? Unreachable code btw
+}
+
+VkFormat findDepthFormat(VkPhysicalDevice physicalDevice)
+{
+	return findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT, physicalDevice);
+}
+
+bool hasStencilComponent(VkFormat format)
+{
+	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels, VkDevice device, VkPhysicalDevice physicalDevice, VkQueue graphicsQueue, VkCommandPool commandPool)
+{
+	// Each level will be transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL after the blit command reading from it is finished
+
+	VkFormatProperties formatProperties;
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
+
+	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) // Check if image format supports linear blitting (since support is not guaranteed on all platforms)
+	{
+		ASSERTE(false, "Generating mipmaps failed - Texture image format does not support linear blitting");
+	}
+
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.image = image;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.levelCount = 1;
+
+	int32_t mipWidth = texWidth;
+	int32_t mipHeight = texHeight;
+
+	for (uint32_t i = 1; i < mipLevels; i++) // Record VkCmdBlitImage commands generating mmipmaps (Each time generate mipmap one level higher)
+	{
+		// First, we transition level i - 1 to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL. 
+		// This transition will wait for level i - 1 to be filled, either from the previous blit command, or from vkCmdCopyBufferToImage. The current blit command will wait on this transition.
+
+		barrier.subresourceRange.baseMipLevel = i - 1;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+		vkCmdPipelineBarrier(commandBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+			0, nullptr,
+			0, nullptr,
+			1, &barrier);
+
+		VkImageBlit blit = {};
+		blit.srcOffsets[0] = { 0, 0, 0 }; // Determine the 3D region that data will be blitted from
+		blit.srcOffsets[1] = { mipWidth, mipHeight, 1 }; // Determine the 3D region that data will be blitted from
+		blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		blit.srcSubresource.mipLevel = i - 1;
+		blit.srcSubresource.baseArrayLayer = 0;
+		blit.srcSubresource.layerCount = 1;
+		blit.dstOffsets[0] = { 0, 0, 0 }; // Determines the region that data will be blitted to
+		blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 }; // Determines the region that data will be blitted to (divided by two since each mip level is half the size of the previous level)
+		blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		blit.dstSubresource.mipLevel = i;
+		blit.dstSubresource.baseArrayLayer = 0;
+		blit.dstSubresource.layerCount = 1;
+
+		vkCmdBlitImage(commandBuffer, // Record blit command
+			image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, // Transition from
+			image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // Transition to
+			1, &blit,
+			VK_FILTER_LINEAR); // Specify filtering 
+
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		vkCmdPipelineBarrier(commandBuffer, // This transition waits on the current blit command to finish (All sampling operations will wait on this transition to finish)
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+			0, nullptr,
+			0, nullptr,
+			1, &barrier);
+
+		if (mipWidth > 1) mipWidth /= 2; // Divide the current mip dimensions by two
+		if (mipHeight > 1) mipHeight /= 2; // Divide the current mip dimensions by two
+	}
+
+	barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+	vkCmdPipelineBarrier(commandBuffer, // Wait for transition the last mip level from VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+		0, nullptr,
+		0, nullptr,
+		1, &barrier);
+
+	endSingleTimeCommands(device, commandPool, graphicsQueue, commandBuffer);
 }
