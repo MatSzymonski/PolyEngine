@@ -32,21 +32,7 @@ namespace Poly
 		friend class ForwardRenderer;
 		//friend class TiledForwardRenderer;
 
-	private:
-
-		enum class eRendererType
-		{
-			FORWARD
-		};
-
-
-
-
 	public:
-
-		const int MAX_FRAMES_IN_FLIGHT = 2; // Maximum number of frames that can be processed concurrently
-		const bool ENABLE_SIMPLE_SHADING = false;
-
 		VKRenderingDevice(SDL_Window* window, const Poly::ScreenSize& size);
 		~VKRenderingDevice();
 
@@ -59,58 +45,33 @@ namespace Poly
 		const ScreenSize& GetScreenSize() const override { return screenSize; }
 
 	private:
-
 		SDL_Window* window;
 		ScreenSize screenSize;
 
 		VkInstance instance;
-		VkDebugUtilsMessengerEXT debugMessenger;
 		VkSurfaceKHR surface;
-		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU
-		VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 		VkDevice device; // Logical device
+		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU
 
 		VkQueue graphicsQueue;
 		VkQueue presentQueue;
 
-		IRendererInterface* renderer;
-		eRendererType rendererType;
-
 		VkPhysicalDeviceMemoryProperties memoryProperties;
+		VkDebugUtilsMessengerEXT debugMessenger;
+		VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+		
+		IRendererInterface* renderer;
+
 		
 
-		const std::vector<const char*> validationLayers = { // Validation layers required (to load)
-			"VK_LAYER_KHRONOS_validation"
-		};
+		void createInstance();	
+		void createSurface();
 
-		const std::vector<const char*> instanceExtensions = { // Extensions required (to load) //TODO(HIST0R) throws error when any
-			//"VK_EXT_debug_report" //TODO(HIST0R) How to actually add extensions?
-		};
-
-		const std::vector<const char*> deviceExtensions = {
-			VK_KHR_SWAPCHAIN_EXTENSION_NAME
-		};
-
-
-		void createInstance();
-		bool checkValidationLayerSupport();
-		std::vector<const char*> getRequiredExtensions();
 		void setupDebugMessenger();
 		void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 		VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
 		static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-		void createSurface();
-		void pickPhysicalDevice();
-		bool isDeviceSuitable(VkPhysicalDevice device);
-
-		bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-
-		VkSampleCountFlagBits getMaxUsableSampleCount();
-		void createLogicalDevice();
-
 		void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
-
-
 
 
 		// Engine Renderer API 

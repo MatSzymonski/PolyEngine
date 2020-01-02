@@ -6,6 +6,7 @@
 #include "VKUtils.hpp"
 
 #include <CommandBuffer.hpp>
+#include <VKConfig.hpp>
 
 //#include <vulkan/vulkan.h>
 #include <fstream>
@@ -61,7 +62,7 @@ void ForwardRenderer::cleanUp()
 	destroyBuffer(indexBuffer, RDI->device);
 	destroyBuffer(vertexBuffer, RDI->device);
 
-	for (size_t i = 0; i < RDI->MAX_FRAMES_IN_FLIGHT; i++)
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		vkDestroySemaphore(RDI->device, renderFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(RDI->device, imageAvailableSemaphores[i], nullptr);
@@ -297,7 +298,7 @@ void ForwardRenderer::createGraphicsPipeline()
 
 	VkPipelineMultisampleStateCreateInfo multisampling = {}; // Desribes parameters of edge anti-aliasing
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.sampleShadingEnable = RDI->ENABLE_SIMPLE_SHADING; // enable sample shading in the pipeline
+	multisampling.sampleShadingEnable = ENABLE_SIMPLE_SHADING; // enable sample shading in the pipeline
 	multisampling.minSampleShading = 0.2f; // min fraction for sample shading; closer to one is smoother
 	multisampling.rasterizationSamples = RDI->msaaSamples;
 	multisampling.pSampleMask = nullptr;
@@ -431,9 +432,8 @@ void ForwardRenderer::createTextureImage()
 	uploadBuffer(stagingBuffer, RDI->device, pixels);
 	stbi_image_free(pixels); // Clean up original pixel array (not needed anymore)
 
-
 	createImage(textureImage, texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-
+	
 	transitionImageLayout(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, RDI->device, commandPool, RDI->graphicsQueue); // Transition the image to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 	copyBufferToImage(stagingBuffer.buffer, textureImage.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), RDI->device, commandPool, RDI->graphicsQueue); // Execute the buffer to image copy operation																												   
 	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
@@ -620,9 +620,9 @@ void ForwardRenderer::createCommandBuffers()
 
 void ForwardRenderer::createSyncObjects()
 {
-	imageAvailableSemaphores.resize(RDI->MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
-	renderFinishedSemaphores.resize(RDI->MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
-	inFlightFences.resize(RDI->MAX_FRAMES_IN_FLIGHT); // Set of fences for each frame in pool
+	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
+	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
+	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); // Set of fences for each frame in pool
 	imagesInFlight.resize(swapchain.imageCount, VK_NULL_HANDLE); // Track for each swap chain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
 
 
@@ -633,7 +633,7 @@ void ForwardRenderer::createSyncObjects()
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Set fence state to signaled
 
-	for (size_t i = 0; i < RDI->MAX_FRAMES_IN_FLIGHT; i++) // For each frame in pool create sync objects
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) // For each frame in pool create sync objects
 	{
 		if (vkCreateSemaphore(RDI->device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
 			vkCreateSemaphore(RDI->device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
@@ -847,5 +847,5 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	}
 
 
-	currentFrame = (currentFrame + 1) % RDI->MAX_FRAMES_IN_FLIGHT; // Advance to the next frame
+	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT; // Advance to the next frame
 }
