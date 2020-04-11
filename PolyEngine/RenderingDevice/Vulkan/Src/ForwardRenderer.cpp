@@ -10,6 +10,14 @@
 
 
 
+#include <imgui.h>
+#include "imgui/imgui_impl_sdl.h"
+#include "imgui/imgui_impl_vulkan.h"
+static ImGui_ImplVulkanH_Window g_MainWindowData;
+
+
+
+
 //#include <vulkan/vulkan.h>
 #include <fstream>
 
@@ -791,6 +799,48 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	}
 
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame]; // Mark the image as now being in use by this frame
+	
+	//--
+
+	ImGui_ImplVulkanH_Window* wd;
+	VkSemaphore image_acquired_semaphore = wd->FrameSemaphores[wd->SemaphoreIndex].ImageAcquiredSemaphore;
+	ImGui_ImplVulkanH_Frame* fd = &wd->Frames[wd->FrameIndex];
+
+
+	{
+		if (vkResetCommandPool(RDI->device, commandPool, 0) != VK_SUCCESS)
+		{
+			ASSERTE(false, "Reseting command buffer failed");
+		}
+
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+
+		if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS)
+		{
+			ASSERTE(false, "Beginning of command buffer recording failed");
+		}
+
+		err = vkBeginCommandBuffer(fd->CommandBuffer, &info);
+		check_vk_result(err);
+	}
+	{
+		VkRenderPassBeginInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		info.renderPass = wd->RenderPass;
+		info.framebuffer = fd->Framebuffer;
+		info.renderArea.extent.width = wd->Width;
+		info.renderArea.extent.height = wd->Height;
+		info.clearValueCount = 1;
+		info.pClearValues = &wd->ClearValue;
+		vkCmdBeginRenderPass(fd->CommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
+	}
+
+
+
 
 
 
