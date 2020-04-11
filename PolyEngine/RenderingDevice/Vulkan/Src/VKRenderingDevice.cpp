@@ -43,7 +43,6 @@ VKRenderingDevice::~VKRenderingDevice()
 	vkDeviceWaitIdle(device); // Wait for all asynchronous rendering operations to finish and then start destroying (to avoid errors when closing program in the middle of processing)
 
 	renderer->Deinit();
-
 	vkDestroyDevice(device, nullptr);
 
 	if (ENABLE_VALIDATION_LAYERS)
@@ -51,9 +50,7 @@ VKRenderingDevice::~VKRenderingDevice()
 
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyInstance(instance, nullptr);
-
 	//CleanUpResources(); //TODO(HIST0R) If will be any in future (like default textures etc)
-
 	gRenderingDevice = nullptr;
 }
 
@@ -107,13 +104,8 @@ void VKRenderingDevice::setupDebugMessenger()
 
 	VkDebugUtilsMessengerCreateInfoEXT createInfo;
 	populateDebugMessengerCreateInfo(createInfo);
-
-	if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
-	{
-		ASSERTE(false, "Setting up Vulkan debug messenger failed");
-	}
-
-	core::utils::gConsole.LogInfo("Vulkan debug messenger set up successfully");
+	VK_CHECK(createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger), "Setting up Vulkan debug messenger failed");
+	core::utils::gConsole.LogDebug("Vulkan debug messenger set up successfully");
 }
 
 void VKRenderingDevice::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo)
@@ -172,16 +164,14 @@ void VKRenderingDevice::createSurface()
 
 
 
-// ---------------------------- Engine Renderer API Implementation  ----------------------------
+// ---------------------------- Rendering Device API Implementation  ----------------------------
 
 using MeshQueue = core::storage::PriorityQueue<const MeshRenderingComponent*, SceneView::DistanceToCameraComparator>;
 
 void VKRenderingDevice::Init()
 {
 	core::utils::gConsole.LogInfo("VKRenderingDevice initialization");
-
 	//CreateUtilityTextures();
-
 	renderer = CreateRenderer();
 	renderer->Init();
 }
@@ -192,15 +182,13 @@ IRendererInterface* VKRenderingDevice::CreateRenderer()
 
 	switch (rendererType)
 	{
-	case eRendererType::FORWARD:
-		renderer = new ForwardRenderer(this);
-		core::utils::gConsole.LogInfo("Creating forward Vulkan renderer");
-		break;
-
-	default:
-		ASSERTE(false, "Creating renderer failed - Unknown eRenderingModeType");
+		case eRendererType::FORWARD:
+			renderer = new ForwardRenderer(this);
+			core::utils::gConsole.LogInfo("Creating forward Vulkan renderer");
+			break;
+		default:
+			ASSERTE(false, "Creating renderer failed - Unknown eRenderingModeType");
 	}
-
 	return renderer;
 }
 
@@ -287,8 +275,7 @@ std::unique_ptr<ITextFieldBufferDeviceProxy> VKRenderingDevice::CreateTextFieldB
 
 std::unique_ptr<IMeshDeviceProxy> VKRenderingDevice::CreateMesh()
 {
-	return nullptr;
-	//return std::make_unique<VKMeshDeviceProxy>();
+	return nullptr;// std::make_unique<VKMeshDeviceProxy>(PARAMS);
 }
 
 std::unique_ptr<IParticleDeviceProxy> VKRenderingDevice::CreateParticle()

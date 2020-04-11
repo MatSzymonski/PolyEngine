@@ -8,6 +8,8 @@
 #include <CommandBuffer.hpp>
 #include <VKConfig.hpp>
 
+
+
 //#include <vulkan/vulkan.h>
 #include <fstream>
 
@@ -24,7 +26,7 @@ ForwardRenderer::ForwardRenderer(VKRenderingDevice * renderingDeviceInterface)
 	
 }
 
-void ForwardRenderer::Init()
+void ForwardRenderer::Init() 
 {
 	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, 0);
 	createRenderPass();
@@ -414,7 +416,7 @@ void ForwardRenderer::createFramebuffers()
 	}
 }
 
-void ForwardRenderer::createTextureImage()
+void ForwardRenderer::createTextureImage() //TODO REMOVE or move to resources
 {
 	int texWidth, texHeight, texChannels;
 	//stbi_uc* pixels = stbi_load("C:/GameDevelopment/PolyEngine/Engine/PolyEngine/PolyEngine/CommonBuild/RenderingDevice/Vulkan/PolyRenderingDeviceVK/res/Textures/PolyEngine_logo.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha); // Load image from file
@@ -446,7 +448,7 @@ void ForwardRenderer::createTextureImage()
 
 
 
-void ForwardRenderer::createVertexBuffer()
+void ForwardRenderer::createVertexBuffer() //TODO REMOVE or move to resources
 {
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 	Buffer stagingBuffer;
@@ -457,7 +459,7 @@ void ForwardRenderer::createVertexBuffer()
 	destroyBuffer(stagingBuffer, RDI->device);
 }
 
-void ForwardRenderer::createIndexBuffer()
+void ForwardRenderer::createIndexBuffer()  //TODO REMOVE or move to resources
 {
 	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
@@ -603,7 +605,7 @@ void ForwardRenderer::createCommandBuffers()
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets); // Bind vertex buffers to bindings in shaders
 
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind vertex buffers to bindings in shaders
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind index buffers to bindings in shaders
 
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
 
@@ -623,7 +625,7 @@ void ForwardRenderer::createSyncObjects()
 	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
 	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
 	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); // Set of fences for each frame in pool
-	imagesInFlight.resize(swapchain.imageCount, VK_NULL_HANDLE); // Track for each swap chain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
+	imagesInFlight.resize(swapchain.imageCount, VK_NULL_HANDLE); // Track for each swapchain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
 
 
 	VkSemaphoreCreateInfo semaphoreInfo = {};
@@ -805,9 +807,9 @@ void ForwardRenderer::Render(const SceneView& sceneView)
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	vkResetFences(RDI->device, 1, &inFlightFences[currentFrame]); // Restore the fence to the unsignaled state
+	vkResetFences(RDI->device, 1, &inFlightFences[currentFrame]); // Restore the fence to the unsignaled state (block fence)
 
-	VkResult queueSubmitResult = vkQueueSubmit(RDI->graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]);
+	VkResult queueSubmitResult = vkQueueSubmit(RDI->graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]); // (unblock fence after passing to render queue so it can be used for new frame render instantly)
 	if (queueSubmitResult != VK_SUCCESS)
 	{
 		ASSERTE(queueSubmitResult == VK_ERROR_OUT_OF_HOST_MEMORY, "Submitting draw command buffer to graphics queue failed - Out of host memory");

@@ -30,7 +30,7 @@ void pickPhysicalDevice(VkPhysicalDevice& physicalDevice, VkInstance instance, V
 			VkPhysicalDeviceFeatures deviceFeatures;
 			vkGetPhysicalDeviceFeatures(_physicalDevice, &deviceFeatures);
 
-			core::utils::gConsole.LogInfo(" - {}", deviceProperties.deviceName);
+			core::utils::gConsole.LogDebug(" - {}", deviceProperties.deviceName);
 		}
 	}
 

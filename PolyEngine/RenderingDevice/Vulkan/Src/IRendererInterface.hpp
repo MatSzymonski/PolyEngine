@@ -91,5 +91,8 @@ namespace Poly {
 
 	protected:
 		VKRenderingDevice* RDI;
+
+
+
 	};
 }

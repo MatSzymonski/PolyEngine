@@ -98,9 +98,6 @@ int main(int argc, char* args[])
 
 	// Load rendering device library
 	core::storage::String p = Poly::gAssetsPathConfig.GetRenderingDeviceLibPath();
-	//core::utils::gConsole.LogDebug(p);
-
-	//core::storage::String p = "./PolyRenderingDeviceVK.dll";
 
 	auto loadRenderingDevice = ::pe::core::utils::LoadFunctionFromSharedLibrary<CreateRenderingDeviceFunc>(p.GetCStr(), "PolyCreateRenderingDevice");
 	if (!loadRenderingDevice.FunctionValid())
