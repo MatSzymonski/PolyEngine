@@ -10,6 +10,10 @@
 
 #include <Configs/AssetsPathConfig.hpp>
 
+#include <imgui.h>
+#include "imgui/imgui_impl_sdl.h"
+#include "imgui/imgui_impl_vulkan.h" 
+
 namespace pe::core::math
 {
 	class AARect;
@@ -17,6 +21,15 @@ namespace pe::core::math
 
 
 namespace Poly {
+
+	struct Frame // Frame in flight
+	{
+		VkFence inFlightfence;
+		VkSemaphore imageAvailableSemaphore;
+		VkSemaphore renderFinishedSemaphore;
+
+	};
+
 
 	class ForwardRenderer : public IRendererInterface
 	{
@@ -70,6 +83,7 @@ namespace Poly {
 
 
 		//ImGui
+		ImGui_ImplVulkanH_Window g_MainWindowData;
 		VkRenderPass imGuiRenderPass;
 		VkCommandPool imGuiCommandPool;
 		std::vector<VkCommandBuffer> imGuiCommandBuffers;

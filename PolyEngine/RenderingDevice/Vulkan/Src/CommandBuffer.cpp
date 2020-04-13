@@ -5,7 +5,7 @@
 
 using namespace Poly;
 
-VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool)
+VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPool) // Allocate single time command buffer and begin recording
 {
 	VkCommandBufferAllocateInfo allocationInfo = {};
 	allocationInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -25,7 +25,7 @@ VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPo
 	return commandBuffer;
 }
 
-void endSingleTimeCommands(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer)
+void endSingleTimeCommands(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer) // Stop recording of single time command buffer, submit it to the queue and then clean it up
 {
 	vkEndCommandBuffer(commandBuffer); // End recording
 
