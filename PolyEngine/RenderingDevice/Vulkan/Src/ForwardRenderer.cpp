@@ -8,17 +8,15 @@
 #include <CommandBuffer.hpp>
 #include <VKConfig.hpp>
 
-
-
-#define USE_IMGUI false
-
-
-
 //#include <vulkan/vulkan.h>
 #include <fstream>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+
+
+#define USE_IMGUI true
 
 using namespace Poly;
 using MeshQueue = core::storage::PriorityQueue<const MeshRenderingComponent*, SceneView::DistanceToCameraComparator>;
@@ -47,7 +45,7 @@ void ForwardRenderer::Init()
 	createDescriptorPool();
 	createDescriptorSets();
 	createCommandBuffers();
-	createSyncObjects();
+	createFrames();
 	initializeImGui();
 }
 
@@ -70,10 +68,10 @@ void ForwardRenderer::cleanUp()
 	destroyBuffer(vertexBuffer, RDI->device);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		vkDestroySemaphore(RDI->device, renderFinishedSemaphores[i], nullptr);
-		vkDestroySemaphore(RDI->device, imageAvailableSemaphores[i], nullptr);
-		vkDestroyFence(RDI->device, inFlightFences[i], nullptr);
+	{		
+		vkDestroySemaphore(RDI->device, frames[i].renderFinishedSemaphore, nullptr);
+		vkDestroySemaphore(RDI->device, frames[i].imageAvailableSemaphore, nullptr);
+		vkDestroyFence(RDI->device, frames[i].inFlightFence, nullptr);
 	}
 
 	vkDestroyCommandPool(RDI->device, commandPool, nullptr);
@@ -647,29 +645,26 @@ void ForwardRenderer::createCommandBuffers()
 	}
 }
 
-void ForwardRenderer::createSyncObjects()
+void ForwardRenderer::createFrames()
 {
-	imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
-	renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT); // Set of semaphores for each frame in pool
-	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT); // Set of fences for each frame in pool
 	swapchainImagesInFlight.resize(swapchain.imageCount, VK_NULL_HANDLE); // Track for each swapchain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
 
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VkFenceCreateInfo fenceCreateInfo = {};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Set fence state to signaled
 
-	VkSemaphoreCreateInfo semaphoreInfo = {};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	VkFenceCreateInfo fenceInfo = {};
-	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Set fence state to signaled
-
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) // For each frame in pool create sync objects
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) // Create frames
 	{
-		if (vkCreateSemaphore(RDI->device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(RDI->device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(RDI->device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		Frame frame;
+		if (vkCreateSemaphore(RDI->device, &semaphoreCreateInfo, nullptr, &frame.imageAvailableSemaphore) != VK_SUCCESS ||
+			vkCreateSemaphore(RDI->device, &semaphoreCreateInfo, nullptr, &frame.renderFinishedSemaphore) != VK_SUCCESS ||
+			vkCreateFence(RDI->device, &fenceCreateInfo, nullptr, &frame.inFlightFence) != VK_SUCCESS)
 		{
 			ASSERTE(false, "Creating synchronization objects for the frame failed");
 		}
+		frames.push_back(frame);
 	}
 }
 
@@ -756,7 +751,6 @@ void ForwardRenderer::initializeImGui() // TODO Move imgui helper functions to t
 			if (vkCreateRenderPass(RDI->device, &renderPassCreateInfo, nullptr, &imGuiRenderPass) != VK_SUCCESS) {
 				ASSERTE(false, "Creating ImGui render pass failed");
 			}
-
 		}
 
 		ImGui_ImplSDL2_InitForVulkan(RDI->window);
@@ -803,9 +797,9 @@ void ForwardRenderer::initializeImGui() // TODO Move imgui helper functions to t
 		}
 
 		{ // Upload fonts to GPU
-			VkCommandBuffer command_buffer = beginSingleTimeCommands(RDI->device, commandPool);
-			ImGui_ImplVulkan_CreateFontsTexture(command_buffer); //
-			endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, command_buffer);
+			VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
+			ImGui_ImplVulkan_CreateFontsTexture(commandBuffer); 
+			endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
 		}
 	}
 }
@@ -982,10 +976,12 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 	}
 	*/
 
-	vkWaitForFences(RDI->device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); // Wait for frame to be finished and then start rendering new data to it
+	Frame* currentFrame = &frames[currentFrameIndex];
+
+	vkWaitForFences(RDI->device, 1, &currentFrame->inFlightFence, VK_TRUE, UINT64_MAX); // Wait for frame to be finished and then start rendering new data to it
 
 	uint32_t swapchainImageIndex;
-	VkResult result = vkAcquireNextImageKHR(RDI->device, swapchain.swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &swapchainImageIndex); // Reserve image from swapchain then start waiting (not bussy waiting) When image becomes available sync object is signaled
+	VkResult result = vkAcquireNextImageKHR(RDI->device, swapchain.swapchain, UINT64_MAX, currentFrame->imageAvailableSemaphore, VK_NULL_HANDLE, &swapchainImageIndex); // Reserve image from swapchain then start waiting (not bussy waiting) When image becomes available sync object is signaled
 
 	{ // Check swapchain compatibility with the surface
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) 
@@ -1001,14 +997,15 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 	
 	updateUniformBuffer(swapchainImageIndex);
 
-	if (swapchainImagesInFlight[swapchainImageIndex] != VK_NULL_HANDLE) // Check if a previous frame is using this image (i.e. there is its fence to wait on)
-	{
-		vkWaitForFences(RDI->device, 1, &swapchainImagesInFlight[swapchainImageIndex], VK_TRUE, UINT64_MAX);
+	{ //TODO: is this really needed? There is semaphore in sumbit info that plays the same role as fence here
+		if (swapchainImagesInFlight[swapchainImageIndex] != VK_NULL_HANDLE) // Check if a previous frame is using this image (i.e. there is its fence to wait on)
+		{
+			vkWaitForFences(RDI->device, 1, &swapchainImagesInFlight[swapchainImageIndex], VK_TRUE, UINT64_MAX);
+		}
+		swapchainImagesInFlight[swapchainImageIndex] = currentFrame->inFlightFence; // Mark the image (corresponding fence in fact) as now being in use by this frame
 	}
 
-	swapchainImagesInFlight[swapchainImageIndex] = inFlightFences[currentFrame]; // Mark the image (corresponding fence in fact) as now being in use by this frame
-	
-	vkResetFences(RDI->device, 1, &inFlightFences[currentFrame]); // Block fence (Restore the fence to the unsignaled state)
+	vkResetFences(RDI->device, 1, &currentFrame->inFlightFence); // Block fence (Restore the fence to the unsignaled state)
 
 	{ // ImGui rendering
 		if (USE_IMGUI)
@@ -1051,12 +1048,11 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 	}
 
 
-	VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] }; // Specifies for which semaphores to wait before execution begins
-	VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] }; // To which semaphores send signal when command buffer(s) have finished execution
+	VkSemaphore waitSemaphores[] = { currentFrame->imageAvailableSemaphore }; // Specifies for which semaphores to wait before execution begins
+	VkSemaphore signalSemaphores[] = { currentFrame->renderFinishedSemaphore }; // To which semaphores send signal when command buffer(s) have finished execution
 
 	{ // Submit all commands
-		//std::array<VkCommandBuffer, 2> submitCommandBuffers = { commandBuffers[swapchainImageIndex], imGuiCommandBuffers[swapchainImageIndex]};
-
+	
 		std::vector<VkCommandBuffer> submitCommandBuffers;
 		submitCommandBuffers.push_back(commandBuffers[swapchainImageIndex]);
 		if(USE_IMGUI)
@@ -1074,7 +1070,7 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
 		
-		VkResult queueSubmitResult = vkQueueSubmit(RDI->graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]); // (unblock fence after passing to render queue so it can be used for new frame render instantly)
+		VkResult queueSubmitResult = vkQueueSubmit(RDI->graphicsQueue, 1, &submitInfo, currentFrame->inFlightFence); // Unblock fence after passing to render queue so it can be used for new frame render instantly
 		if (queueSubmitResult != VK_SUCCESS)
 		{
 			ASSERTE(queueSubmitResult == VK_ERROR_OUT_OF_HOST_MEMORY, "Submitting draw command buffer to graphics queue failed - Out of host memory");
@@ -1114,5 +1110,5 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 		}
 	}
 	
-	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	currentFrameIndex = (currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }

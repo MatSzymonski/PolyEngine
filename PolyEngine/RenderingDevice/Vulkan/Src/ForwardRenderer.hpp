@@ -24,10 +24,9 @@ namespace Poly {
 
 	struct Frame // Frame in flight
 	{
-		VkFence inFlightfence;
+		VkFence inFlightFence;
 		VkSemaphore imageAvailableSemaphore;
 		VkSemaphore renderFinishedSemaphore;
-
 	};
 
 
@@ -40,46 +39,34 @@ namespace Poly {
 		void Resize(const ScreenSize& size) override;
 		void Render(const SceneView& sceneView) override;
 		void Deinit() override;
-	
-
 
 	private:
 		Swapchain swapchain;
-
 		std::vector<VkFramebuffer> swapchainFramebuffers;
-
 		VkRenderPass renderPass;
-		
-
+	
 		VkDescriptorSetLayout descriptorSetLayout;
 		VkPipelineLayout pipelineLayout;
 		VkPipeline graphicsPipeline;
-
-		VkCommandPool commandPool; // Manage the memory that is used to store the buffers
-
+		VkCommandPool commandPool;
 		Image colorTarget;
 		Image depthTarget;
-
-	
 		uint32_t mipLevels;
 		Image textureImage;
 		VkSampler textureSampler;
 
 		Buffer vertexBuffer;
 		Buffer indexBuffer;
-
 		std::vector<Buffer> uniformBuffers;
 
 		VkDescriptorPool descriptorPool;
 		std::vector<VkDescriptorSet> descriptorSets;
-
 		std::vector<VkCommandBuffer> commandBuffers;
 
-		std::vector<VkSemaphore> imageAvailableSemaphores; // Set of semaphores for each frame in pool
-		std::vector<VkSemaphore> renderFinishedSemaphores; // Set of semaphores for each frame in pool
-		std::vector<VkFence> inFlightFences;
+		// Frames in flight
+		std::vector<Frame> frames;
 		std::vector<VkFence> swapchainImagesInFlight;
-		size_t currentFrame = 0; // Frame index (used to use the right pair of semaphores every time)
+		size_t currentFrameIndex = 0; // Frame index (used to use the right pair of semaphores every time)
 
 
 		//ImGui
@@ -91,11 +78,9 @@ namespace Poly {
 		VkDescriptorPool imguiDescriptorPool;
 
 
-
 		bool windowResized = false;
 		pe::core::math::AARect lastViewportRect;
 		
-
 		void createRenderPass();
 		void createDescriptorSetLayout();
 		void createGraphicsPipeline();
@@ -109,7 +94,7 @@ namespace Poly {
 		void createDescriptorPool();
 		void createDescriptorSets();
 		void createCommandBuffers();
-		void createSyncObjects();
+		void createFrames();
 
 		void initializeImGui();
 		void recreateImGui();
