@@ -71,7 +71,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceK
 	return indices;
 }
 
-void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkCommandPool& commandPool, VkCommandPoolCreateFlags flags)
+void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkCommandPool* commandPool, VkCommandPoolCreateFlags flags)
 {
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
 
@@ -80,10 +80,10 @@ void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfa
 	commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 	commandPoolCreateInfo.flags = flags;
 
-	VK_CHECK(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool), "Creating command pool failed");
+	VK_CHECK(vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, commandPool), "Creating command pool failed");
 }
 
-void allocateCommandBuffers(VkDevice device, VkCommandBuffer* commandBuffer, uint32_t commandBufferCount, VkCommandPool &commandPool)
+void allocateCommandBuffers(VkDevice device, VkCommandBuffer* commandBuffer, uint32_t commandBufferCount, VkCommandPool commandPool)
 {
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;

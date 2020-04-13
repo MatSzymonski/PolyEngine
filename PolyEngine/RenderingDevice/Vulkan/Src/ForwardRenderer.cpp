@@ -14,10 +14,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-
-
-#define USE_IMGUI true
-
 using namespace Poly;
 using MeshQueue = core::storage::PriorityQueue<const MeshRenderingComponent*, SceneView::DistanceToCameraComparator>;
 
@@ -34,7 +30,7 @@ void ForwardRenderer::Init()
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, commandPool, 0);
+	createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, &primaryCommandPool, 0);
 	createColorResources();
 	createDepthResources();
 	createFramebuffers();
@@ -72,9 +68,11 @@ void ForwardRenderer::cleanUp()
 		vkDestroySemaphore(RDI->device, frames[i].renderFinishedSemaphore, nullptr);
 		vkDestroySemaphore(RDI->device, frames[i].imageAvailableSemaphore, nullptr);
 		vkDestroyFence(RDI->device, frames[i].inFlightFence, nullptr);
+		vkFreeCommandBuffers(RDI->device, frames[i].commandPool, static_cast<uint32_t>(frames[i].commandBuffers.size()), frames[i].commandBuffers.data());
+		vkDestroyCommandPool(RDI->device, frames[i].commandPool, nullptr);
 	}
 
-	vkDestroyCommandPool(RDI->device, commandPool, nullptr);
+	vkDestroyCommandPool(RDI->device, primaryCommandPool, nullptr);
 
 	cleanUpImGui();
 }
@@ -89,7 +87,10 @@ void ForwardRenderer::cleanUpSwapchain(Swapchain& swapchain)
 		vkDestroyFramebuffer(RDI->device, framebuffer, nullptr);
 	}
 
-	vkFreeCommandBuffers(RDI->device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		//vkFreeCommandBuffers(RDI->device, frames[i].commandPool, static_cast<uint32_t>(frames[i].commandBuffers.size()), frames[i].commandBuffers.data());
+	}
 
 	vkDestroyPipeline(RDI->device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(RDI->device, pipelineLayout, nullptr);
@@ -146,8 +147,6 @@ void ForwardRenderer::recreateSwapchain()
 	createCommandBuffers();
 
 	recreateImGui();
-
-
 }
 
 void ForwardRenderer::createRenderPass() // Specify the number of color and depth buffers, number of samples for each of them and how their contents should be handled throughout the rendering operations. Also specify subpasses.
@@ -467,17 +466,15 @@ void ForwardRenderer::createTextureImage() //TODO REMOVE or move to resources
 
 	createImage(textureImage, texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, RDI->device, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 	
-	transitionImageLayout(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, RDI->device, commandPool, RDI->graphicsQueue); // Transition the image to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	copyBufferToImage(stagingBuffer.buffer, textureImage.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), RDI->device, commandPool, RDI->graphicsQueue); // Execute the buffer to image copy operation																												   
+	transitionImageLayout(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels, RDI->device, primaryCommandPool, RDI->graphicsQueue); // Transition the image to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	copyBufferToImage(stagingBuffer.buffer, textureImage.image, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), RDI->device, primaryCommandPool, RDI->graphicsQueue); // Execute the buffer to image copy operation																												   
 	//transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL while generating mipmaps
 
 	destroyBuffer(stagingBuffer, RDI->device);
-	generateMipmaps(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels, RDI->device, RDI->physicalDevice, RDI->graphicsQueue, commandPool); // Generate mipmaps for this texture image
+	generateMipmaps(textureImage.image, VK_FORMAT_R8G8B8A8_UNORM, texWidth, texHeight, mipLevels, RDI->device, RDI->physicalDevice, RDI->graphicsQueue, primaryCommandPool); // Generate mipmaps for this texture image
 
 	textureSampler = createSampler(RDI->device, VK_SAMPLER_REDUCTION_MODE_MIN_EXT, mipLevels);
 }
-
-
 
 void ForwardRenderer::createVertexBuffer() //TODO REMOVE or move to resources
 {
@@ -486,7 +483,7 @@ void ForwardRenderer::createVertexBuffer() //TODO REMOVE or move to resources
 	createBuffer(stagingBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 	uploadBuffer(stagingBuffer, RDI->device, vertices.data());
 	createBuffer(vertexBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-	copyBuffer(stagingBuffer, vertexBuffer, bufferSize, RDI->device, commandPool, RDI->graphicsQueue);
+	copyBuffer(stagingBuffer, vertexBuffer, bufferSize, RDI->device, primaryCommandPool, RDI->graphicsQueue);
 	destroyBuffer(stagingBuffer, RDI->device);
 }
 
@@ -498,7 +495,7 @@ void ForwardRenderer::createIndexBuffer()  //TODO REMOVE or move to resources
 	createBuffer(stagingBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 	uploadBuffer(stagingBuffer, RDI->device, indices.data());
 	createBuffer(indexBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-	copyBuffer(stagingBuffer, indexBuffer, bufferSize, RDI->device, commandPool, RDI->graphicsQueue);
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize, RDI->device, primaryCommandPool, RDI->graphicsQueue);
 	destroyBuffer(stagingBuffer, RDI->device);
 }
 
@@ -588,61 +585,9 @@ void ForwardRenderer::createDescriptorSets()
 	}
 }
 
-//TODO
-// Allocate command buffers in commandPool
-// Record them like imgui buffer in render function
-// While recording get data from scene and record draw command for each one
-//
-
 void ForwardRenderer::createCommandBuffers()
 {
-	commandBuffers.resize(swapchain.imageCount);
-	allocateCommandBuffers(RDI->device, commandBuffers.data(), static_cast<uint32_t>(commandBuffers.size()), commandPool);
-
-	for (size_t i = 0; i < commandBuffers.size(); i++) // Record command buffers (for each framebuffer/swapchain image)
-	{
-		VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		commandBufferBeginInfo.flags = 0;
-		commandBufferBeginInfo.pInheritanceInfo = nullptr; // Optional, relevant for secondary command buffers only
-
-		if (vkBeginCommandBuffer(commandBuffers[i], &commandBufferBeginInfo) != VK_SUCCESS)
-		{
-			ASSERTE(false, "Beginning of command buffer recording failed");
-		}
-		{
-			VkRenderPassBeginInfo renderPassBeginInfo = {};
-			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-			renderPassBeginInfo.renderPass = renderPass;
-			renderPassBeginInfo.framebuffer = swapchainFramebuffers[i];
-			renderPassBeginInfo.renderArea.offset = { 0, 0 };
-			renderPassBeginInfo.renderArea.extent = swapchain.extent;
-			std::array<VkClearValue, 2> clearValues = {};
-			clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-			clearValues[1].depthStencil = { 1.0f, 0 };
-			renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-			renderPassBeginInfo.pClearValues = clearValues.data(); // Color used for VK_ATTACHMENT_LOAD_OP_CLEAR in attachment (color and depth)
-			vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE); // (INLINE - Render pass commands will be embedded in the primary command buffer itself and no secondary command buffers will be executed, SECONDARY_COMMAND_BUFFERS - The render pass commands will be executed from secondary command buffers)
-			{
-				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-				VkBuffer vertexBuffers[] = { vertexBuffer.buffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets); // Bind vertex buffers to bindings in shaders
-
-				vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind index buffers to bindings in shaders
-
-				vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
-
-				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);; // Actual draw command
-			}
-			vkCmdEndRenderPass(commandBuffers[i]);
-		}
-		if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
-		{
-			ASSERTE(false, "Recording command buffer failed");
-		}
-	}
+	
 }
 
 void ForwardRenderer::createFrames()
@@ -658,12 +603,22 @@ void ForwardRenderer::createFrames()
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) // Create frames
 	{
 		Frame frame;
-		if (vkCreateSemaphore(RDI->device, &semaphoreCreateInfo, nullptr, &frame.imageAvailableSemaphore) != VK_SUCCESS ||
-			vkCreateSemaphore(RDI->device, &semaphoreCreateInfo, nullptr, &frame.renderFinishedSemaphore) != VK_SUCCESS ||
-			vkCreateFence(RDI->device, &fenceCreateInfo, nullptr, &frame.inFlightFence) != VK_SUCCESS)
-		{
-			ASSERTE(false, "Creating synchronization objects for the frame failed");
+		
+		{ // Sync objects
+			if (vkCreateSemaphore(RDI->device, &semaphoreCreateInfo, nullptr, &frame.imageAvailableSemaphore) != VK_SUCCESS ||
+				vkCreateSemaphore(RDI->device, &semaphoreCreateInfo, nullptr, &frame.renderFinishedSemaphore) != VK_SUCCESS ||
+				vkCreateFence(RDI->device, &fenceCreateInfo, nullptr, &frame.inFlightFence) != VK_SUCCESS)
+			{
+				ASSERTE(false, "Creating synchronization objects for the frame failed");
+			}
 		}
+
+		{ // Command pools and command buffers
+			createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, &frame.commandPool, 0);
+			frame.commandBuffers.resize(COMMAND_BUFFERS_PER_FRAME);
+			allocateCommandBuffers(RDI->device, frame.commandBuffers.data(), COMMAND_BUFFERS_PER_FRAME, frame.commandPool);	
+		}
+
 		frames.push_back(frame);
 	}
 }
@@ -791,15 +746,15 @@ void ForwardRenderer::initializeImGui() // TODO Move imgui helper functions to t
 		}
 
 		{ // Command pool
-			createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, imGuiCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+			createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, &imGuiCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 			imGuiCommandBuffers.resize(swapchain.imageCount);
 			allocateCommandBuffers(RDI->device, imGuiCommandBuffers.data(), static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandPool);
 		}
 
 		{ // Upload fonts to GPU
-			VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, commandPool);
+			VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, primaryCommandPool);
 			ImGui_ImplVulkan_CreateFontsTexture(commandBuffer); 
-			endSingleTimeCommands(RDI->device, commandPool, RDI->graphicsQueue, commandBuffer);
+			endSingleTimeCommands(RDI->device, primaryCommandPool, RDI->graphicsQueue, commandBuffer);
 		}
 	}
 }
@@ -1007,7 +962,56 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 
 	vkResetFences(RDI->device, 1, &currentFrame->inFlightFence); // Block fence (Restore the fence to the unsignaled state)
 
-	{ // ImGui rendering
+	{ // Primary commands recording
+		if (vkResetCommandPool(RDI->device, currentFrame->commandPool, 0) != VK_SUCCESS)
+		{
+			ASSERTE(false, "Resetting command pool failed");
+		}
+		VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		commandBufferBeginInfo.flags = 0;
+		commandBufferBeginInfo.pInheritanceInfo = nullptr; // Optional, relevant for secondary command buffers only
+
+		if (vkBeginCommandBuffer(currentFrame->commandBuffers[0], &commandBufferBeginInfo) != VK_SUCCESS)
+		{
+			ASSERTE(false, "Beginning of command buffer recording failed");
+		}
+		{
+			VkRenderPassBeginInfo renderPassBeginInfo = {};
+			renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+			renderPassBeginInfo.renderPass = renderPass;
+			//renderPassBeginInfo.framebuffer = swapchainFramebuffers[i];
+			renderPassBeginInfo.framebuffer = swapchainFramebuffers[swapchainImageIndex];
+			renderPassBeginInfo.renderArea.offset = { 0, 0 };
+			renderPassBeginInfo.renderArea.extent = swapchain.extent;
+			std::array<VkClearValue, 2> clearValues = {};
+			clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+			clearValues[1].depthStencil = { 1.0f, 0 };
+			renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+			renderPassBeginInfo.pClearValues = clearValues.data(); // Color used for VK_ATTACHMENT_LOAD_OP_CLEAR in attachment (color and depth)
+			vkCmdBeginRenderPass(currentFrame->commandBuffers[0], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE); // (INLINE - Render pass commands will be embedded in the primary command buffer itself and no secondary command buffers will be executed, SECONDARY_COMMAND_BUFFERS - The render pass commands will be executed from secondary command buffers)
+			{
+				vkCmdBindPipeline(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+				VkBuffer vertexBuffers[] = { vertexBuffer.buffer };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(currentFrame->commandBuffers[0], 0, 1, vertexBuffers, offsets); // Bind vertex buffers to bindings in shaders
+
+				vkCmdBindIndexBuffer(currentFrame->commandBuffers[0], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind index buffers to bindings in shaders
+
+				vkCmdBindDescriptorSets(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[swapchainImageIndex], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
+
+				vkCmdDrawIndexed(currentFrame->commandBuffers[0], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);; // Actual draw command
+			}
+			vkCmdEndRenderPass(currentFrame->commandBuffers[0]);
+		}
+		if (vkEndCommandBuffer(currentFrame->commandBuffers[0]) != VK_SUCCESS)
+		{
+			ASSERTE(false, "Recording command buffer failed");
+		}
+	}
+
+	{ // ImGui commands recording
 		if (USE_IMGUI)
 		{
 			if (vkResetCommandPool(RDI->device, imGuiCommandPool, 0) != VK_SUCCESS)
@@ -1054,7 +1058,7 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 	{ // Submit all commands
 	
 		std::vector<VkCommandBuffer> submitCommandBuffers;
-		submitCommandBuffers.push_back(commandBuffers[swapchainImageIndex]);
+		submitCommandBuffers.push_back(currentFrame->commandBuffers[0]); // commandBuffers[swapchainImageIndex]
 		if(USE_IMGUI)
 			submitCommandBuffers.push_back(imGuiCommandBuffers[swapchainImageIndex]);
 

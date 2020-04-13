@@ -27,6 +27,8 @@ namespace Poly {
 		VkFence inFlightFence;
 		VkSemaphore imageAvailableSemaphore;
 		VkSemaphore renderFinishedSemaphore;
+		VkCommandPool commandPool;
+		std::vector<VkCommandBuffer> commandBuffers;
 	};
 
 
@@ -48,7 +50,7 @@ namespace Poly {
 		VkDescriptorSetLayout descriptorSetLayout;
 		VkPipelineLayout pipelineLayout;
 		VkPipeline graphicsPipeline;
-		VkCommandPool commandPool;
+		VkCommandPool primaryCommandPool;
 		Image colorTarget;
 		Image depthTarget;
 		uint32_t mipLevels;
@@ -61,7 +63,7 @@ namespace Poly {
 
 		VkDescriptorPool descriptorPool;
 		std::vector<VkDescriptorSet> descriptorSets;
-		std::vector<VkCommandBuffer> commandBuffers;
+		//std::vector<VkCommandBuffer> commandBuffers;
 
 		// Frames in flight
 		std::vector<Frame> frames;

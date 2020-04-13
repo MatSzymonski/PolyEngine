@@ -3,10 +3,12 @@
 namespace Poly {
 
 	const int MAX_FRAMES_IN_FLIGHT = 2; // Maximum number of frames that can be processed concurrently
+	const int COMMAND_BUFFERS_PER_FRAME = 1;
 	const bool ENABLE_SIMPLE_SHADING = false;
 	const bool PRINT_AVAILABLE_VULKAN_LAYERS = true;
 	const bool PRINT_AVAILABLE_VULKAN_INSTANCE_EXTENSIONS = true;
 	const bool PRINT_AVAILABLE_DEVICES = true;
+	const bool USE_IMGUI = false;
 
 #ifdef NDEBUG
 	const bool ENABLE_VALIDATION_LAYERS = false;

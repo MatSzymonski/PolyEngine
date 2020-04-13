@@ -16,5 +16,5 @@ VkCommandBuffer beginSingleTimeCommands(VkDevice device, VkCommandPool commandPo
 void endSingleTimeCommands(VkDevice device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer);
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
-void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkCommandPool& commandPool, VkCommandPoolCreateFlags flags);
-void allocateCommandBuffers(VkDevice device, VkCommandBuffer* commandBuffer, uint32_t commandBufferCount, VkCommandPool &commandPool);
+void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkCommandPool* commandPool, VkCommandPoolCreateFlags flags);
+void allocateCommandBuffers(VkDevice device, VkCommandBuffer* commandBuffer, uint32_t commandBufferCount, VkCommandPool commandPool);
