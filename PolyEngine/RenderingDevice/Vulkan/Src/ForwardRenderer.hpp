@@ -27,8 +27,12 @@ namespace Poly {
 		VkFence inFlightFence;
 		VkSemaphore imageAvailableSemaphore;
 		VkSemaphore renderFinishedSemaphore;
+
 		VkCommandPool commandPool;
 		std::vector<VkCommandBuffer> commandBuffers;
+
+		VkCommandPool imGuiCommandPool;
+		std::vector<VkCommandBuffer> imGuiCommandBuffers;
 	};
 
 
@@ -72,10 +76,9 @@ namespace Poly {
 
 
 		//ImGui
-		ImGui_ImplVulkanH_Window g_MainWindowData;
+		//ImGui_ImplVulkanH_Window g_MainWindowData;
 		VkRenderPass imGuiRenderPass;
-		VkCommandPool imGuiCommandPool;
-		std::vector<VkCommandBuffer> imGuiCommandBuffers;
+		
 		std::vector<VkFramebuffer>  imGuiSwapchainFramebuffers;
 		VkDescriptorPool imguiDescriptorPool;
 
@@ -95,12 +98,12 @@ namespace Poly {
 		void createUniformBuffers();
 		void createDescriptorPool();
 		void createDescriptorSets();
-		void createCommandBuffers();
 		void createFrames();
 
-		void initializeImGui();
-		void recreateImGui();
+		void createImGui();
+		void createImGuiResources();
 		void cleanUpImGui();
+		void cleanUpImGuiSwapchain();
 
 		void cleanUp();
 		void cleanUpSwapchain(Swapchain& swapchain);

@@ -40,9 +40,8 @@ void ForwardRenderer::Init()
 	createUniformBuffers();
 	createDescriptorPool();
 	createDescriptorSets();
-	createCommandBuffers();
 	createFrames();
-	initializeImGui();
+	createImGui();
 }
 
 void ForwardRenderer::Deinit()
@@ -87,11 +86,6 @@ void ForwardRenderer::cleanUpSwapchain(Swapchain& swapchain)
 		vkDestroyFramebuffer(RDI->device, framebuffer, nullptr);
 	}
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-	{
-		//vkFreeCommandBuffers(RDI->device, frames[i].commandPool, static_cast<uint32_t>(frames[i].commandBuffers.size()), frames[i].commandBuffers.data());
-	}
-
 	vkDestroyPipeline(RDI->device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(RDI->device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(RDI->device, renderPass, nullptr);
@@ -106,7 +100,7 @@ void ForwardRenderer::cleanUpSwapchain(Swapchain& swapchain)
 	vkDestroyDescriptorPool(RDI->device, descriptorPool, nullptr);
 }
 
-void ForwardRenderer::cleanUpImGui()
+void ForwardRenderer::cleanUpImGuiSwapchain()
 {
 	if (USE_IMGUI)
 	{
@@ -117,13 +111,26 @@ void ForwardRenderer::cleanUpImGui()
 
 		vkDestroyRenderPass(RDI->device, imGuiRenderPass, nullptr);
 
-		vkFreeCommandBuffers(RDI->device, imGuiCommandPool, static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandBuffers.data());
-		vkDestroyCommandPool(RDI->device, imGuiCommandPool, nullptr);
+		vkDestroyDescriptorPool(RDI->device, imguiDescriptorPool, nullptr); //
+	}
+}
+
+void ForwardRenderer::cleanUpImGui()
+{
+	if (USE_IMGUI)
+	{
+		cleanUpImGuiSwapchain();
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			vkFreeCommandBuffers(RDI->device, frames[i].imGuiCommandPool, static_cast<uint32_t>(frames[i].imGuiCommandBuffers.size()), frames[i].imGuiCommandBuffers.data());
+			vkDestroyCommandPool(RDI->device, frames[i].imGuiCommandPool, nullptr);
+		}
 
 		ImGui_ImplVulkan_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();
-		vkDestroyDescriptorPool(RDI->device, imguiDescriptorPool, nullptr);
+		//vkDestroyDescriptorPool(RDI->device, imguiDescriptorPool, nullptr);
 	}
 }
 
@@ -136,6 +143,7 @@ void ForwardRenderer::recreateSwapchain()
 	Swapchain old = swapchain;
 	createSwapchain(swapchain, RDI->window, RDI->physicalDevice, RDI->device, RDI->surface, old.swapchain);
 	cleanUpSwapchain(old); // Wait for all the asynchronous rendering operations to finish and then close the program (to avoid errors when closing program in the middle of processing)
+	cleanUpImGuiSwapchain();
 	createRenderPass();
 	createGraphicsPipeline();
 	createColorResources();
@@ -144,9 +152,11 @@ void ForwardRenderer::recreateSwapchain()
 	createUniformBuffers();
 	createDescriptorPool();
 	createDescriptorSets();
-	createCommandBuffers();
 
-	recreateImGui();
+	createImGuiResources();
+
+
+	//recreateImGui();
 }
 
 void ForwardRenderer::createRenderPass() // Specify the number of color and depth buffers, number of samples for each of them and how their contents should be handled throughout the rendering operations. Also specify subpasses.
@@ -585,11 +595,6 @@ void ForwardRenderer::createDescriptorSets()
 	}
 }
 
-void ForwardRenderer::createCommandBuffers()
-{
-	
-}
-
 void ForwardRenderer::createFrames()
 {
 	swapchainImagesInFlight.resize(swapchain.imageCount, VK_NULL_HANDLE); // Track for each swapchain image if a frame in flight is currently using it to avoid desynchronization when there are more images than fences etc
@@ -623,153 +628,141 @@ void ForwardRenderer::createFrames()
 	}
 }
 
-void ForwardRenderer::initializeImGui() // TODO Move imgui helper functions to the renderer
+void ForwardRenderer::createImGui() // TODO Incorporate imgui helper functions to the renderer code
 {
 	if (USE_IMGUI)
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
-		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-		// Setup Dear ImGui style
 		ImGui::StyleColorsDark();
-		//ImGui::StyleColorsClassic();
+		createImGuiResources();
 
-
-		{ // Descriptor Pool
-			VkDescriptorPoolSize pool_sizes[] =
+		{ // Command pools and command buffers for each frame
+			for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 			{
-				{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-				{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-				{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-				{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-				{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-				{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-				{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-				{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-				{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-				{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-				{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-			};
-
-			VkDescriptorPoolCreateInfo pool_info = {};
-			pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-			pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
-			pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
-			pool_info.pPoolSizes = pool_sizes;
-
-			if (vkCreateDescriptorPool(RDI->device, &pool_info, nullptr, &imguiDescriptorPool) != VK_SUCCESS) {
-				ASSERTE(false, "Creating ImGui descriptor pool failed");
+				createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, &frames[i].imGuiCommandPool, 0);
+				frames[i].imGuiCommandBuffers.resize(COMMAND_BUFFERS_PER_FRAME);
+				allocateCommandBuffers(RDI->device, frames[i].imGuiCommandBuffers.data(), COMMAND_BUFFERS_PER_FRAME, frames[i].imGuiCommandPool);
 			}
+		}	
+	}
+}
+
+void ForwardRenderer::createImGuiResources()
+{
+	{ // Descriptor Pool
+		VkDescriptorPoolSize poolSizes[] =
+		{
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+		};
+
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+		descriptorPoolCreateInfo.maxSets = 1000 * IM_ARRAYSIZE(poolSizes);
+		descriptorPoolCreateInfo.poolSizeCount = (uint32_t)IM_ARRAYSIZE(poolSizes);
+		descriptorPoolCreateInfo.pPoolSizes = poolSizes;
+
+		if (vkCreateDescriptorPool(RDI->device, &descriptorPoolCreateInfo, nullptr, &imguiDescriptorPool) != VK_SUCCESS) {
+			ASSERTE(false, "Creating ImGui descriptor pool failed");
 		}
+	}
 
-		{ // Render pass
-			VkAttachmentDescription attachment = {};
-			attachment.format = swapchain.imageFormat;
-			attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-			attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-			attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-			attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	{ // Render pass
+		VkAttachmentDescription attachment = {};
+		attachment.format = swapchain.imageFormat;
+		attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-			VkAttachmentReference color_attachment = {};
-			color_attachment.attachment = 0;
-			color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		VkAttachmentReference color_attachment = {};
+		color_attachment.attachment = 0;
+		color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-			VkSubpassDescription subpass = {};
-			subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-			subpass.colorAttachmentCount = 1;
-			subpass.pColorAttachments = &color_attachment;
+		VkSubpassDescription subpass = {};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &color_attachment;
 
-			VkSubpassDependency dependency = {};
-			dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-			dependency.dstSubpass = 0; //Wait for first render pass
-			dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //Wait till this stage
-			dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			dependency.srcAccessMask = 0;  // or VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-			dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		VkSubpassDependency dependency = {};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0; //Wait for first render pass
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; //Wait till this stage
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcAccessMask = 0;  // or VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-			VkRenderPassCreateInfo renderPassCreateInfo = {};
-			renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-			renderPassCreateInfo.attachmentCount = 1;
-			renderPassCreateInfo.pAttachments = &attachment;
-			renderPassCreateInfo.subpassCount = 1;
-			renderPassCreateInfo.pSubpasses = &subpass;
-			renderPassCreateInfo.dependencyCount = 1;
-			renderPassCreateInfo.pDependencies = &dependency;
-			if (vkCreateRenderPass(RDI->device, &renderPassCreateInfo, nullptr, &imGuiRenderPass) != VK_SUCCESS) {
+		VkRenderPassCreateInfo renderPassCreateInfo = {};
+		renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassCreateInfo.attachmentCount = 1;
+		renderPassCreateInfo.pAttachments = &attachment;
+		renderPassCreateInfo.subpassCount = 1;
+		renderPassCreateInfo.pSubpasses = &subpass;
+		renderPassCreateInfo.dependencyCount = 1;
+		renderPassCreateInfo.pDependencies = &dependency;
+		if (vkCreateRenderPass(RDI->device, &renderPassCreateInfo, nullptr, &imGuiRenderPass) != VK_SUCCESS) {
+			ASSERTE(false, "Creating ImGui render pass failed");
+		}
+	}
+
+	{ // Framebuffers
+		VkImageView attachment[1];
+		VkFramebufferCreateInfo framebufferCreateInfo = {};
+		framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferCreateInfo.renderPass = imGuiRenderPass;
+		framebufferCreateInfo.attachmentCount = 1;
+		framebufferCreateInfo.pAttachments = attachment;
+		framebufferCreateInfo.width = swapchain.extent.width;
+		framebufferCreateInfo.height = swapchain.extent.height;
+		framebufferCreateInfo.layers = 1;
+
+		imGuiSwapchainFramebuffers.resize(swapchain.imageCount);
+		for (uint32_t i = 0; i < swapchain.imageCount; i++)
+		{
+			attachment[0] = swapchain.imageViews[i];
+
+			if (vkCreateFramebuffer(RDI->device, &framebufferCreateInfo, nullptr, &imGuiSwapchainFramebuffers[i]) != VK_SUCCESS) {
 				ASSERTE(false, "Creating ImGui render pass failed");
 			}
 		}
+	}
 
-		ImGui_ImplSDL2_InitForVulkan(RDI->window);
-		ImGui_ImplVulkan_InitInfo init_info = {};
-		init_info.Instance = RDI->instance;
-		init_info.PhysicalDevice = RDI->physicalDevice;
-		init_info.Device = RDI->device;
-		init_info.QueueFamily = 1;
-		init_info.Queue = RDI->graphicsQueue;
-		init_info.PipelineCache = VK_NULL_HANDLE;
-		init_info.DescriptorPool = imguiDescriptorPool;
-		init_info.Allocator = nullptr;
-		init_info.MinImageCount = MAX_FRAMES_IN_FLIGHT;
-		init_info.ImageCount = swapchain.imageCount;
-		init_info.CheckVkResultFn = nullptr;
-		ImGui_ImplVulkan_Init(&init_info, imGuiRenderPass);
+	ImGui_ImplSDL2_InitForVulkan(RDI->window);
+	ImGui_ImplVulkan_InitInfo init_info = {};
+	init_info.Instance = RDI->instance;
+	init_info.PhysicalDevice = RDI->physicalDevice;
+	init_info.Device = RDI->device;
+	init_info.QueueFamily = 1;
+	init_info.Queue = RDI->graphicsQueue;
+	init_info.PipelineCache = VK_NULL_HANDLE;
+	init_info.DescriptorPool = imguiDescriptorPool;
+	init_info.Allocator = nullptr;
+	init_info.MinImageCount = MAX_FRAMES_IN_FLIGHT;
+	init_info.ImageCount = swapchain.imageCount;
+	init_info.CheckVkResultFn = nullptr;
+	ImGui_ImplVulkan_Init(&init_info, imGuiRenderPass);
 
-		{ // Framebuffers
-			VkImageView attachment[1];
-			VkFramebufferCreateInfo framebufferCreateInfo = {};
-			framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			framebufferCreateInfo.renderPass = imGuiRenderPass;
-			framebufferCreateInfo.attachmentCount = 1;
-			framebufferCreateInfo.pAttachments = attachment;
-			framebufferCreateInfo.width = swapchain.extent.width;
-			framebufferCreateInfo.height = swapchain.extent.height;
-			framebufferCreateInfo.layers = 1;
-
-			imGuiSwapchainFramebuffers.resize(swapchain.imageCount);
-			for (uint32_t i = 0; i < swapchain.imageCount; i++)
-			{
-				attachment[0] = swapchain.imageViews[i];  //////////////////////////////////////////// Error maybe here
-
-				if (vkCreateFramebuffer(RDI->device, &framebufferCreateInfo, nullptr, &imGuiSwapchainFramebuffers[i]) != VK_SUCCESS) {
-					ASSERTE(false, "Creating ImGui render pass failed");
-				}
-			}
-		}
-
-		{ // Command pool
-			createCommandPool(RDI->device, RDI->physicalDevice, RDI->surface, &imGuiCommandPool, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-			imGuiCommandBuffers.resize(swapchain.imageCount);
-			allocateCommandBuffers(RDI->device, imGuiCommandBuffers.data(), static_cast<uint32_t>(imGuiCommandBuffers.size()), imGuiCommandPool);
-		}
-
-		{ // Upload fonts to GPU
-			VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, primaryCommandPool);
-			ImGui_ImplVulkan_CreateFontsTexture(commandBuffer); 
-			endSingleTimeCommands(RDI->device, primaryCommandPool, RDI->graphicsQueue, commandBuffer);
-		}
+	{ // Upload fonts to GPU
+		VkCommandBuffer commandBuffer = beginSingleTimeCommands(RDI->device, primaryCommandPool);
+		ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
+		endSingleTimeCommands(RDI->device, primaryCommandPool, RDI->graphicsQueue, commandBuffer);
 	}
 }
-
-void ForwardRenderer::recreateImGui()
-{
-	if (USE_IMGUI)
-	{
-		ImGui_ImplVulkan_SetMinImageCount(MAX_FRAMES_IN_FLIGHT);
-		ImGui_ImplVulkanH_CreateWindow(RDI->instance, RDI->physicalDevice, RDI->device, &g_MainWindowData, 10, nullptr, swapchain.extent.width, swapchain.extent.height, MAX_FRAMES_IN_FLIGHT);
-		g_MainWindowData.FrameIndex = 0;
-	}
-}
-
-
 
 
 
@@ -1014,7 +1007,7 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 	{ // ImGui commands recording
 		if (USE_IMGUI)
 		{
-			if (vkResetCommandPool(RDI->device, imGuiCommandPool, 0) != VK_SUCCESS)
+			if (vkResetCommandPool(RDI->device, currentFrame->imGuiCommandPool, 0) != VK_SUCCESS)
 			{
 				ASSERTE(false, "Resetting command pool failed");
 			}
@@ -1022,7 +1015,7 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 			commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 			commandBufferBeginInfo.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-			if (vkBeginCommandBuffer(imGuiCommandBuffers[swapchainImageIndex], &commandBufferBeginInfo) != VK_SUCCESS)
+			if (vkBeginCommandBuffer(currentFrame->imGuiCommandBuffers[0], &commandBufferBeginInfo) != VK_SUCCESS)
 			{
 				ASSERTE(false, "Beginning ImGui command buffer failed");
 			}
@@ -1038,13 +1031,13 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 				clearValues[1].depthStencil = { 1.0f, 0 };
 				renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 				renderPassBeginInfo.pClearValues = clearValues.data();
-				vkCmdBeginRenderPass(imGuiCommandBuffers[swapchainImageIndex], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBeginRenderPass(currentFrame->imGuiCommandBuffers[0], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 				{
-					ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), imGuiCommandBuffers[swapchainImageIndex]);
+					ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), currentFrame->imGuiCommandBuffers[0]);
 				}
-				vkCmdEndRenderPass(imGuiCommandBuffers[swapchainImageIndex]);
+				vkCmdEndRenderPass(currentFrame->imGuiCommandBuffers[0]);
 			}
-			if (vkEndCommandBuffer(imGuiCommandBuffers[swapchainImageIndex]) != VK_SUCCESS)
+			if (vkEndCommandBuffer(currentFrame->imGuiCommandBuffers[0]) != VK_SUCCESS)
 			{
 				ASSERTE(false, "Ending ImGui command buffer failed");
 			}
@@ -1060,7 +1053,7 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 		std::vector<VkCommandBuffer> submitCommandBuffers;
 		submitCommandBuffers.push_back(currentFrame->commandBuffers[0]); // commandBuffers[swapchainImageIndex]
 		if(USE_IMGUI)
-			submitCommandBuffers.push_back(imGuiCommandBuffers[swapchainImageIndex]);
+			submitCommandBuffers.push_back(currentFrame->imGuiCommandBuffers[0]);
 
 		VkSubmitInfo submitInfo = {}; // Queue submission and synchronization
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

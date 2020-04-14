@@ -8,7 +8,7 @@ namespace Poly {
 	const bool PRINT_AVAILABLE_VULKAN_LAYERS = true;
 	const bool PRINT_AVAILABLE_VULKAN_INSTANCE_EXTENSIONS = true;
 	const bool PRINT_AVAILABLE_DEVICES = true;
-	const bool USE_IMGUI = false;
+	const bool USE_IMGUI = true;
 
 #ifdef NDEBUG
 	const bool ENABLE_VALIDATION_LAYERS = false;
