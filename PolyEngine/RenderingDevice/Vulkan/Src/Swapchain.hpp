@@ -25,7 +25,7 @@
 
 	typedef struct GLFWwindow GLFWwindow;
 
-	void createSwapchain(Swapchain& swapchain, SDL_Window* window, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, VkSwapchainKHR oldSwapchain = 0);
+	void createSwapchain(Swapchain& swapchain, SDL_Window* window, VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface, uint32_t desiredImageCount, VkSwapchainKHR oldSwapchain = 0);
 	void destroySwapchain(const Swapchain& swapchain, VkDevice device);
 
 	SwapchainSurfaceSupportDetails querySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);

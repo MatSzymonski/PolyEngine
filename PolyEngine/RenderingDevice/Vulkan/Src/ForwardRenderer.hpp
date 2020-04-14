@@ -30,9 +30,6 @@ namespace Poly {
 
 		VkCommandPool commandPool;
 		std::vector<VkCommandBuffer> commandBuffers;
-
-		VkCommandPool imGuiCommandPool;
-		std::vector<VkCommandBuffer> imGuiCommandBuffers;
 	};
 
 
@@ -101,9 +98,8 @@ namespace Poly {
 		void createFrames();
 
 		void createImGui();
-		void createImGuiResources();
 		void cleanUpImGui();
-		void cleanUpImGuiSwapchain();
+
 
 		void cleanUp();
 		void cleanUpSwapchain(Swapchain& swapchain);

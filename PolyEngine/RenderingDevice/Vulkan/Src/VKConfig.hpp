@@ -2,7 +2,9 @@
 
 namespace Poly {
 
+
 	const int MAX_FRAMES_IN_FLIGHT = 2; // Maximum number of frames that can be processed concurrently
+	const int DESIRED_SWAPCHAIN_IMAGES = MAX_FRAMES_IN_FLIGHT + 2; // Number of requested images during swapchain creation. It may not be fullfilled since it is hardware dependant.
 	const int COMMAND_BUFFERS_PER_FRAME = 1;
 	const bool ENABLE_SIMPLE_SHADING = false;
 	const bool PRINT_AVAILABLE_VULKAN_LAYERS = true;
