@@ -3,6 +3,7 @@
 #include <pe/Defines.hpp>
 //#include <Common/GLUtils.hpp>
 #include <Resources.hpp>
+#include "VKRenderingDevice.hpp"
 
 namespace Poly
 {
@@ -22,14 +23,17 @@ namespace Poly
 		};
 
 	public:
-		VKMeshDeviceProxy();
+		VKMeshDeviceProxy(VKRenderingDevice* RDI);
 		virtual ~VKMeshDeviceProxy();
 		void SetContent(const Mesh& mesh);
 		unsigned int GetResourceID() const { return ID; };
 
 	private:		
-		unsigned ID = 0;
+		uint32_t ID = 0;
 		::pe::core::utils::EnumArray<Buffer, eBufferType> buffers;
 
+		VKRenderingDevice* RDI;
+
+		
 	};
 }

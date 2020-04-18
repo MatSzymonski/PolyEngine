@@ -80,11 +80,6 @@ void destroyBuffer(const Buffer& buffer, VkDevice device)
 	//delete &buffer; //TODO(HIST0R) Is it really needed?
 }
 
-
-
-
-
-
 void createImage(Image& image, uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkDevice device, const VkPhysicalDeviceMemoryProperties& memoryProperties, VkMemoryPropertyFlags memoryFlags, VkImageUsageFlags usageFlags, VkImageAspectFlags imageViewAspectFlags)
 {
 	VkImageCreateInfo createInfo = {};
@@ -154,7 +149,6 @@ VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags a
 
 	return imageView;
 }
-
 
 void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels, VkDevice device, VkCommandPool commandPool, VkQueue queue)
 {
@@ -269,7 +263,6 @@ VkSampler createSampler(VkDevice device, VkSamplerReductionModeEXT reductionMode
 	VK_CHECK(vkCreateSampler(device, &createInfo, nullptr, &sampler), "Creating sampler failed");
 	return sampler;
 }
-
 
 VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features, VkPhysicalDevice physicalDevice)
 {

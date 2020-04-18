@@ -471,7 +471,7 @@ void ForwardRenderer::createTextureImage() //TODO REMOVE or move to resources
 	textureSampler = createSampler(RDI->device, VK_SAMPLER_REDUCTION_MODE_MIN_EXT, mipLevels);
 }
 
-void ForwardRenderer::createVertexBuffer() //TODO REMOVE or move to resources
+void ForwardRenderer::createVertexBuffer() //TODO REMOVE
 {
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 	Buffer stagingBuffer;
@@ -482,7 +482,7 @@ void ForwardRenderer::createVertexBuffer() //TODO REMOVE or move to resources
 	destroyBuffer(stagingBuffer, RDI->device);
 }
 
-void ForwardRenderer::createIndexBuffer()  //TODO REMOVE or move to resources
+void ForwardRenderer::createIndexBuffer()  //TODO REMOVE
 {
 	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
@@ -937,16 +937,19 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 			vkCmdBeginRenderPass(currentFrame->commandBuffers[0], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE); // (INLINE - Render pass commands will be embedded in the primary command buffer itself and no secondary command buffers will be executed, SECONDARY_COMMAND_BUFFERS - The render pass commands will be executed from secondary command buffers)
 			{
 				vkCmdBindPipeline(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+				
+				{ // One draw call (one shaders pipeline execution with provided data) 
+					VkBuffer vertexBuffers[] = { vertexBuffer.buffer };
+					VkDeviceSize offsets[] = { 0 };
+					vkCmdBindVertexBuffers(currentFrame->commandBuffers[0], 0, 1, vertexBuffers, offsets); // Bind vertex buffers to bindings in shaders
 
-				VkBuffer vertexBuffers[] = { vertexBuffer.buffer };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(currentFrame->commandBuffers[0], 0, 1, vertexBuffers, offsets); // Bind vertex buffers to bindings in shaders
+					vkCmdBindIndexBuffer(currentFrame->commandBuffers[0], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind index buffers to bindings in shaders
 
-				vkCmdBindIndexBuffer(currentFrame->commandBuffers[0], indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT16); // Bind index buffers to bindings in shaders
+					vkCmdBindDescriptorSets(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[swapchainImageIndex], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
 
-				vkCmdBindDescriptorSets(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[swapchainImageIndex], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
-
-				vkCmdDrawIndexed(currentFrame->commandBuffers[0], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);; // Actual draw command
+					vkCmdDrawIndexed(currentFrame->commandBuffers[0], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);; // Actual draw command
+				}
+				
 			}
 			vkCmdEndRenderPass(currentFrame->commandBuffers[0]);
 		}

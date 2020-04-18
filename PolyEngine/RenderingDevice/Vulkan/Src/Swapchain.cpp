@@ -72,7 +72,7 @@ void createSwapchain(Swapchain& swapchain, SDL_Window* window, VkPhysicalDevice 
 	swapchainCreateInfo.imageExtent = extent;
 	swapchainCreateInfo.imageArrayLayers = 1;
 	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
+	
 	QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
 	uint32_t queueFamilyIndicesValues[] = { queueFamilyIndices.graphicsFamily.value(), queueFamilyIndices.presentFamily.value() };
 

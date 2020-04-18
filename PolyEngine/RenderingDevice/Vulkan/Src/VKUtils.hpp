@@ -54,9 +54,9 @@ namespace Poly {
 		::pe::core::math::Vector3f color;
 		::pe::core::math::Vector2f texCoord;*/
 
-		glm::vec3 pos;
+		glm::vec3 position;
 		glm::vec3 color;
-		glm::vec2 texCoord;
+		glm::vec2 texCoords;
 
 		static VkVertexInputBindingDescription getBindingDescription() // Describes at which rate to load data from memory throughout the vertices
 		{
@@ -72,13 +72,13 @@ namespace Poly {
 		{
 			std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {}; // Describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description
 
-			//We have two attributes, position and color, so we need two attribute description structs (The binding is loading one Vertex at a time)
+			//We have three attributes, position and color, so we need three attribute description structs (The binding is loading one Vertex at a time)
 
 			//Vertex position
 			attributeDescriptions[0].binding = 0; // From which binding the per-vertex data comes
 			attributeDescriptions[0].location = 0; // References the location directive of the input in the vertex shader
 			attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT; // Describes the type of data for the attributE
-			attributeDescriptions[0].offset = offsetof(Vertex, pos); // Specifies the number of bytes since the start of the per-vertex data to read from
+			attributeDescriptions[0].offset = offsetof(Vertex, position); // Specifies the number of bytes since the start of the per-vertex data to read from
 
 			//Vertex color
 			attributeDescriptions[1].binding = 0;
@@ -90,7 +90,7 @@ namespace Poly {
 			attributeDescriptions[2].binding = 0;
 			attributeDescriptions[2].location = 2;
 			attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-			attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+			attributeDescriptions[2].offset = offsetof(Vertex, texCoords);
 
 			return attributeDescriptions;
 		}

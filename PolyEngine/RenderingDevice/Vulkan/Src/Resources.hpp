@@ -17,8 +17,6 @@ void uploadBuffer(Buffer& buffer, VkDevice device, const void* data);
 void copyBuffer(Buffer& srcBuffer, Buffer& dstBuffer, VkDeviceSize size, VkDevice device, VkCommandPool commandPool, VkQueue queue);
 void destroyBuffer(const Buffer& buffer, VkDevice device);
 
-
-
 struct Image
 {
 	VkImage image;

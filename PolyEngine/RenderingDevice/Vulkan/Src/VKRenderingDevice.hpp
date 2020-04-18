@@ -30,6 +30,7 @@ namespace Poly
 	class DEVICE_DLLEXPORT VKRenderingDevice : public IRenderingDevice
 	{
 		friend class ForwardRenderer;
+		friend class VKMeshDeviceProxy;
 		//friend class TiledForwardRenderer;
 
 	public:
@@ -62,7 +63,7 @@ namespace Poly
 		
 		IRendererInterface* renderer;
 
-		
+		VkCommandPool resourcesAllocationCommandPool;
 
 		void createInstance();	
 		void createSurface();

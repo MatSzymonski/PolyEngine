@@ -36,6 +36,8 @@ VKRenderingDevice::VKRenderingDevice(SDL_Window* window, const ScreenSize& size)
 	pickPhysicalDevice(physicalDevice, instance, memoryProperties, surface, deviceExtensions);
 	msaaSamples = getMaxUsableSampleCount(physicalDevice);
 	createLogicalDevice(device, physicalDevice, surface, graphicsQueue, presentQueue, deviceExtensions, validationLayers);
+
+	createCommandPool(device, physicalDevice, surface, &resourcesAllocationCommandPool, 0);
 }
 
 VKRenderingDevice::~VKRenderingDevice()
@@ -275,7 +277,9 @@ std::unique_ptr<ITextFieldBufferDeviceProxy> VKRenderingDevice::CreateTextFieldB
 
 std::unique_ptr<IMeshDeviceProxy> VKRenderingDevice::CreateMesh()
 {
-	return nullptr;// std::make_unique<VKMeshDeviceProxy>(PARAMS);
+	//return std::make_unique<VKMeshDeviceProxy>();
+
+	return nullptr;
 }
 
 std::unique_ptr<IParticleDeviceProxy> VKRenderingDevice::CreateParticle()

@@ -1,15 +1,17 @@
 #include <VKMeshDeviceProxy.hpp>
 
 #include <PolyRenderingDeviceVKPCH.hpp>
+#include <VKUtils.hpp>
 //#include <Resources/Mesh.hpp>
 
 //#include <Common/GLUtils.hpp>
 
 using namespace Poly;
 
-VKMeshDeviceProxy::VKMeshDeviceProxy()
+VKMeshDeviceProxy::VKMeshDeviceProxy(VKRenderingDevice* RDI)
+	: RDI(RDI)
 {
-	
+
 }
 
 VKMeshDeviceProxy::~VKMeshDeviceProxy()
@@ -19,14 +21,90 @@ VKMeshDeviceProxy::~VKMeshDeviceProxy()
 
 void VKMeshDeviceProxy::SetContent(const Mesh& mesh)
 {
-	//add device in constructor, command pool, graphics queue
-
 	if (!ID) 
 	{
-		//Create buffers (vert, ind, etc)
 		//If failed
 		throw RenderingDeviceProxyCreationFailedException();
 	}
+	
+	//mesh.GetPositions()
+	//pe::core::math::Vector3f
+	// Vertices
+
+	
+	
+
+	
+	//= {
+	//{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	//{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+	//{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+	//{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+	//{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+	//{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+	//{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+	//{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+	//};
+
+	//const std::vector<uint16_t> indices = {
+	//	0, 1, 2, 2, 3, 0,
+	//	4, 5, 6, 6, 7, 4
+	//};
+
+
+
+	//{ // Create vertices
+
+	//	const std::vector<Vertex> vertices;
+
+	//	const std::vector<::pe::core::math::Vector3f> &positions = mesh.GetPositions();
+	//	//const std::vector<::pe::core::math::Vector3f> &vertexColors = mesh.GetVertexColors ();
+	//	const std::vector<Poly::Mesh::TextCoord> &texCoords = mesh.GetTextCoords();
+
+	//	for (size_t i = 0; i < mesh.GetVertexCount(); i++)
+	//	{
+	//		Vertex vertex(positions[i], ::pe::core::math::Vector3f(0, 0, 0), ::pe::core::math::Vector2f(texCoords[i].U, texCoords[i].V));
+	//		/*vertex.position = positions[i];
+	//		vertex.color = ::pe::core::math::Vector3f(0, 0, 0);
+	//		vertex.texCoords = ::pe::core::math::Vector2f(texCoords[i].U, texCoords[i].V);*/
+
+	//		vertices.push_back(vertex);
+
+
+	//	}
+
+	//	mesh.GetPositions()[i];
+	//	//mesh.GetVertexColor();
+	//	mesh.GetTextCoords();
+
+	//}
+
+	//VkDeviceSize bufferSize = sizeof(Vertex) * mesh.GetVertexCount();
+	//Buffer stagingBuffer;
+	//createBuffer(stagingBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	//uploadBuffer(stagingBuffer, RDI->device, vertices.data());
+	//createBuffer(buffers[eBufferType::VERTEX_BUFFER], RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	//copyBuffer(stagingBuffer, buffers[eBufferType::VERTEX_BUFFER], bufferSize, RDI->device, RDI->resourcesAllocationCommandPool, RDI->graphicsQueue);
+	//destroyBuffer(stagingBuffer, RDI->device);
+
+	//// Indices
+	//VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+	//Buffer stagingBuffer;
+	//createBuffer(stagingBuffer, RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	//uploadBuffer(stagingBuffer, RDI->device, indices.data());
+	//createBuffer(buffers[eBufferType::INDEX_BUFFER], RDI->device, bufferSize, RDI->memoryProperties, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+	//copyBuffer(stagingBuffer, buffers[eBufferType::INDEX_BUFFER], bufferSize, RDI->device, RDI->resourcesAllocationCommandPool, RDI->graphicsQueue);
+	//destroyBuffer(stagingBuffer, RDI->device);
+
+
+
+
+
+
+
+
+
 
 	//Push data to buffers
 
@@ -107,6 +185,7 @@ void VKMeshDeviceProxy::SetContent(const Mesh& mesh)
 	//	glEnableVertexAttribArray(7);
 	//	CHECK_GL_ERR();
 	//}
+	
 }
 
 
