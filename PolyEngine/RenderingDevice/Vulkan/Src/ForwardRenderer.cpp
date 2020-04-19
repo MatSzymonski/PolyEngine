@@ -943,9 +943,7 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 					vkCmdBindDescriptorSets(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[swapchainImageIndex], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
 
 					vkCmdDrawIndexed(currentFrame->commandBuffers[0], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);; // Actual draw command
-
-
-					
+	
 				}
 				
 				/*

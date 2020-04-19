@@ -113,14 +113,14 @@ namespace Poly {
 
 
 	const std::vector<Vertex> vertices = {
-		{Vector3f(-0.5f, -0.5f, 0.0f) , Vector3f(1.0f, 0.0f, 0.0f), Vector2f(0.0f, 0.0f)},
+		{Vector3f(-0.5f, -0.5f, 0.0f) , Vector3f(1.0f, 0.0f, 0.0f), Vector2f(1.0f, 1.0f)},
 		{Vector3f(0.5f, -0.5f, 0.0f) , Vector3f(0.0f, 1.0f, 0.0f), Vector2f(1.0f, 0.0f)},
-		{Vector3f(0.5f, 0.5f, 0.0f) , Vector3f(0.0f, 0.0f, 1.0f), Vector2f(1.0f, 1.0f)},
+		{Vector3f(0.5f, 0.5f, 0.0f) , Vector3f(0.0f, 0.0f, 1.0f), Vector2f(0.0f, 0.0f)},
 		{Vector3f(-0.5f, 0.5f, 0.0f) , Vector3f(1.0f, 1.0f, 1.0f), Vector2f(0.0f, 1.0f)},
 
-		{Vector3f(-0.5f, -0.5f, -0.5f) , Vector3f(1.0f, 0.0f, 0.0f), Vector2f(0.0f, 0.0f)},
+		{Vector3f(-0.5f, -0.5f, -0.5f) , Vector3f(1.0f, 0.0f, 0.0f), Vector2f(1.0f, 1.0f)},
 		{Vector3f(0.5f, -0.5f, -0.5f) , Vector3f(0.0f, 1.0f, 0.0f), Vector2f(1.0f, 0.0f)},
-		{Vector3f(0.5f, 0.5f, -0.5f) , Vector3f(0.0f, 0.0f, 1.0f), Vector2f(1.0f, 1.0f)},
+		{Vector3f(0.5f, 0.5f, -0.5f) , Vector3f(0.0f, 0.0f, 1.0f), Vector2f(0.0f, 0.0f)},
 		{Vector3f(-0.5f, 0.5f, -0.5f) , Vector3f(1.0f, 1.0f, 1.0f), Vector2f(0.0f, 1.0f)}
 	};
 
