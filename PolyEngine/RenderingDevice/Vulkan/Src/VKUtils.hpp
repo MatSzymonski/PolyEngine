@@ -10,6 +10,7 @@
 		ASSERTE(call == VK_SUCCESS, message); \
 	} while (0)
 
+using namespace ::pe::core::math;
 
 namespace Poly {
 
@@ -50,13 +51,15 @@ namespace Poly {
 
 	struct Vertex
 	{
-		/*::pe::core::math::Vector3f pos;
-		::pe::core::math::Vector3f color;
-		::pe::core::math::Vector2f texCoord;*/
+		Vector3f position;
+		Vector3f color;
+		Vector2f texCoords;
 
-		glm::vec3 position;
-		glm::vec3 color;
-		glm::vec2 texCoords;
+		Vertex(Vector3f position, Vector3f color, Vector2f texCoords)
+			: position(position), color(color), texCoords(texCoords)
+		{
+
+		}
 
 		static VkVertexInputBindingDescription getBindingDescription() // Describes at which rate to load data from memory throughout the vertices
 		{
@@ -109,17 +112,16 @@ namespace Poly {
 	};
 
 
-
 	const std::vector<Vertex> vertices = {
-		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-		{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-		{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-		{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+		{Vector3f(-0.5f, -0.5f, 0.0f) , Vector3f(1.0f, 0.0f, 0.0f), Vector2f(0.0f, 0.0f)},
+		{Vector3f(0.5f, -0.5f, 0.0f) , Vector3f(0.0f, 1.0f, 0.0f), Vector2f(1.0f, 0.0f)},
+		{Vector3f(0.5f, 0.5f, 0.0f) , Vector3f(0.0f, 0.0f, 1.0f), Vector2f(1.0f, 1.0f)},
+		{Vector3f(-0.5f, 0.5f, 0.0f) , Vector3f(1.0f, 1.0f, 1.0f), Vector2f(0.0f, 1.0f)},
 
-		{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-		{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-		{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-		{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+		{Vector3f(-0.5f, -0.5f, -0.5f) , Vector3f(1.0f, 0.0f, 0.0f), Vector2f(0.0f, 0.0f)},
+		{Vector3f(0.5f, -0.5f, -0.5f) , Vector3f(0.0f, 1.0f, 0.0f), Vector2f(1.0f, 0.0f)},
+		{Vector3f(0.5f, 0.5f, -0.5f) , Vector3f(0.0f, 0.0f, 1.0f), Vector2f(1.0f, 1.0f)},
+		{Vector3f(-0.5f, 0.5f, -0.5f) , Vector3f(1.0f, 1.0f, 1.0f), Vector2f(0.0f, 1.0f)}
 	};
 
 	const std::vector<uint16_t> indices = {

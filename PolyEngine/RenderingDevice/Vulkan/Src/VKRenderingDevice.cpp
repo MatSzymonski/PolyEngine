@@ -44,6 +44,8 @@ VKRenderingDevice::~VKRenderingDevice()
 {
 	vkDeviceWaitIdle(device); // Wait for all asynchronous rendering operations to finish and then start destroying (to avoid errors when closing program in the middle of processing)
 
+	vkDestroyCommandPool(device, resourcesAllocationCommandPool, nullptr);
+
 	renderer->Deinit();
 	vkDestroyDevice(device, nullptr);
 
@@ -277,9 +279,8 @@ std::unique_ptr<ITextFieldBufferDeviceProxy> VKRenderingDevice::CreateTextFieldB
 
 std::unique_ptr<IMeshDeviceProxy> VKRenderingDevice::CreateMesh()
 {
-	//return std::make_unique<VKMeshDeviceProxy>();
-
-	return nullptr;
+	//return nullptr;
+	return std::make_unique<VKMeshDeviceProxy>(this);	
 }
 
 std::unique_ptr<IParticleDeviceProxy> VKRenderingDevice::CreateParticle()

@@ -827,11 +827,6 @@ void ForwardRenderer::updateUniformBuffer(uint32_t currentImage)
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapchain.extent.width / (float)swapchain.extent.height, 0.1f, 10.0f);
 	ubo.proj[1][1] *= -1; // GLM was designed for OpenGL, where the Y coordinate of the clip coordinates is inverted. The compensate flip the sign on the scaling factor of the Y axis in the projection matrix (Without this the image will be rendered upside down)
 
-	//void* data;
-	//vkMapMemory(RDI->device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
-	//memcpy(data, &ubo, sizeof(ubo)); // Copy the data to the buffer
-	//vkUnmapMemory(RDI->device, uniformBuffersMemory[currentImage]); // Unmap the buffer memory
-
 	void* data;
 	vkMapMemory(RDI->device, uniformBuffers[currentImage].memory, 0, sizeof(ubo), 0, &data); // Map the buffer memory into CPU accessible memory with (The last parameter specifies the output for the pointer to the mapped memory)
 	memcpy(data, &ubo, sizeof(ubo)); // Copy the data to the buffer
@@ -948,8 +943,27 @@ void ForwardRenderer::Render(const SceneView& sceneView) //TODO Create struct ho
 					vkCmdBindDescriptorSets(currentFrame->commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[swapchainImageIndex], 0, nullptr); // Bind the right descriptor set for each swapchain image to the descriptors in the shader 
 
 					vkCmdDrawIndexed(currentFrame->commandBuffers[0], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);; // Actual draw command
+
+
+					
 				}
 				
+				/*
+				core::storage::PriorityQueue<const MeshRenderingComponent*, SceneView::DistanceToCameraComparator> drawOpaqueQueue(sceneView.OpaqueQueue);
+				while (drawOpaqueQueue.GetSize() > 0)
+				{
+					const MeshRenderingComponent* meshCmp = drawOpaqueQueue.Pop();
+					for (const MeshResource::SubMesh* subMesh : meshCmp->GetMesh()->GetSubMeshes())
+					{							
+						const uint subMeshID = (GLuint)(subMesh->GetMeshProxy()->buffers[eBufferType::INDEX_BUFFER]);
+						// Get object from ID						
+						// Bind vertex buffer
+						// Bind index buffer
+						// Set objects variables from UBO (worldFromModel etc) to shader
+						// Draw
+					}
+				}
+				*/			
 			}
 			vkCmdEndRenderPass(currentFrame->commandBuffers[0]);
 		}

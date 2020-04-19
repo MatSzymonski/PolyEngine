@@ -12,11 +12,10 @@ namespace Poly
 	private:
 		enum class eBufferType {
 			VERTEX_BUFFER,
-			TEXCOORD_BUFFER,
+			INDEX_BUFFER,
 			NORMAL_BUFFER,
 			TANGENT_BUFFER,
 			BITANGENT_BUFFER,
-			INDEX_BUFFER,
 			BONE_INDEX_BUFFER,
 			BONE_WEIGHT_BUFFER,
 			_COUNT
@@ -26,11 +25,16 @@ namespace Poly
 		VKMeshDeviceProxy(VKRenderingDevice* RDI);
 		virtual ~VKMeshDeviceProxy();
 		void SetContent(const Mesh& mesh);
+
+		Buffer& GetBuffer(eBufferType bufferType) { return buffers[bufferType]; }
 		unsigned int GetResourceID() const { return ID; };
 
 	private:		
 		uint32_t ID = 0;
 		::pe::core::utils::EnumArray<Buffer, eBufferType> buffers;
+
+
+
 
 		VKRenderingDevice* RDI;
 
